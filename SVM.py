@@ -17,10 +17,11 @@ class SurroundView:
         # self.img_left_sub = rospy.Subscriber('/left_cam/image_raw', Image, self.img_left_callback)
         # self.img_right_sub = rospy.Subscriber('/right_cam/image_raw', Image, self.img_right_callback)
         # self.img_back_sub = rospy.Subscriber('/rear_cam/image_raw', Image, self.img_back_callback)
-        self.cur_img_front = cv2.imread('front.jpg', cv2.IMREAD_COLOR)
-        self.cur_img_left = cv2.imread('left.jpg', cv2.IMREAD_COLOR)
-        self.cur_img_right = cv2.imread('right.jpg', cv2.IMREAD_COLOR)
-        self.cur_img_back = cv2.imread('rear.jpg', cv2.IMREAD_COLOR)
+        self.cur_img_front = cv2.imread('images/front.jpg', cv2.IMREAD_COLOR)
+        self.cur_img_left = cv2.imread('images/left.jpg', cv2.IMREAD_COLOR)
+        self.cur_img_right = cv2.imread('images/right.jpg', cv2.IMREAD_COLOR)
+        self.cur_img_back = cv2.imread('images/rear.jpg', cv2.IMREAD_COLOR)
+    
 
         
         # 초기화
@@ -110,7 +111,7 @@ class SurroundView:
         
         # 자동차 이미지 불러오는 것 인듯
         #self.car = cv2.imread('./car.jpg')
-        self.car = cv2.imread('car.png', cv2.IMREAD_COLOR)
+        self.car = cv2.imread('images/car.png', cv2.IMREAD_COLOR)
         self.car = cv2.rotate(self.car, cv2.ROTATE_180)
         # car_final = cv2.resize(self.car, (910, 592), interpolation=cv2.INTER_LINEAR)
  
@@ -281,7 +282,6 @@ class SurroundView:
     def hsv(self, img, color='green'):
         hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
 
-        # 휴리스틱으로 구한거 같은데? 오진다,
         if color == 'green':
             mask = cv2.inRange(hsv, (25, 60, 50), (86, 255, 255))
         elif color == 'red':
@@ -649,7 +649,6 @@ class SurroundView:
 
                     # out_frame[self.sero:-self.sero,(240+179):-(240+179)] = self.final_car
 
-                    
                     #cv2.imshow('surround view', out_frame)
                     #cv2.imshow('surround view',cv2.resize(self.remask*255, dsize=(300, 500),interpolation=cv2.INTER_LINEAR))
                     '''			
