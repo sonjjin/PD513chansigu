@@ -18,6 +18,7 @@ class Joystick:
 
         rospy.init_node('joystick', anonymous=False)
     
+    
     def execute(self):
         while not rospy.is_shutdown():
             self.get_keyboard_input()
