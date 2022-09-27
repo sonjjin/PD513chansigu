@@ -167,18 +167,11 @@ class SurroundView:
     # front ~ side_right bird eye view로 바꾸는거
     def front(self, img):
         IMAGE_H, IMAGE_W, _ = img.shape
-
-        #print(img.shape)
-        #img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
-
+        
         src = self.forward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
         dst = self.forward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
-        #src = np.float32([[210,115], [210,180], [150,120], [150,175]])
-        #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
         M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
         Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
-
-        IMAGE_H, IMAGE_W, _ = img.shape
 
         warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
         output = warped_img[90:,:-10]
@@ -191,8 +184,6 @@ class SurroundView:
         dst = self.backward_dst
         M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
         Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
-    
-        IMAGE_H, IMAGE_W, _ = img.shape
     
         warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
         output = warped_img[90:,:]
