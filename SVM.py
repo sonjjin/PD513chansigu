@@ -343,7 +343,6 @@ class SurroundView:
                 img2 = self.cur_img_right
                 img3 = self.cur_img_back
 	
-		
                 head = self.front(img1)
                 tail = self.rear(img3)
                 left = self.side_left(img4)
@@ -358,7 +357,6 @@ class SurroundView:
                 
                 self.old_frame_head = cv.cvtColor(head[:,250:-250], cv.COLOR_BGR2RGB)
                 self.old_gray_head = cv.cvtColor(self.old_frame_head, cv.COLOR_BGR2GRAY)
-                print(self.old_gray_head.shape)
                 
                 # head0 = self.front(np.ones(img1.shape)*255*255)
                 # tail0 = cv2.flip(self.rear(np.ones(img3.shape)*255*255),0)
@@ -420,39 +418,10 @@ class SurroundView:
         
                 frame_gray_head = cv.cvtColor(head, cv.COLOR_BGR2GRAY)
 		
-                # calculate optical flow
-                # p0 = cv2.goodFeaturesToTrack(self.old_gray_head, mask = None, **self.feature_params)
-                """
-                window size (5,5)로 lucas-kanade algorithm사용
-                지정한 점들이 어디로 움직였는지 보여줌
-                """
-                p1, st, err = cv.calcOpticalFlowPyrLK(self.old_gray, frame_gray, p0, None, **self.lk_params) 
 
-                good_new = p1[st==1]
-                good_old = p0[st==1]
-
-                # print((good_old-good_new).shape)
                 try:
-                    # print("a")
-                    #dx,dy = np.median((good_old-good_new).squeeze()[:,0]),np.median((good_old-good_new).squeeze()[:,1])
-                    # dx,dy = np.median((good_old-good_new)[:,0]),np.median((good_old-good_new)[:,1])
-                    # dx,dy = int(round(dx)),int(round(dy))
-                        #if dx**2 > 9 or dy**2 > 9:
-                        #    frame = frame
-                        #else:
-                        #    frame = frame#fill(old_frame,frame,dx,dy)
-                    # print(dy)
-                    
-                        #old_frame[1:] = old_frame[:-1]
-                    '''
-                    if dy < 0:                
-                        self.old_frame[min(dy,-1)*-1:] = self.old_frame[:min(dy,-1)]
-                        else:
-                        self.old_frame[:max(dy,1)*-1] = self.old_frame[max(dy,1):]
-                    '''
                     step = -10
                     self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
-                    #import pdb;pdb.set_trace()
                     
                     # out_frame = frame
                     frame = frame*self.mask+self.old_frame*self.mask_inverse
@@ -479,16 +448,6 @@ class SurroundView:
                     #cv2.imwrite('test.png',out_frame)
                                 
                     
-                    input_yellow = self.hsv(out_frame, color='yellow')  
-                    
-                    square_yellow, is_square = self.detect_square(input_yellow)
-                    
-                    if is_square:
-                        center_yellow = np.int0(np.mean(square_yellow, axis=0))
-                    
-                        # cv2.drawContours(out_frame, [square_yellow], 0, (0,0,255), 3, cv2.LINE_AA)
-                                
-                    
                         
                     self.prev_surround_view = out_frame
                     out_frame[self.head_H-25:self.head_H+self.car_height-25,left.shape[1]:left.shape[1]+self.car_width,:] = self.car_final
@@ -498,7 +457,6 @@ class SurroundView:
                     self.is_right = False
                     self.is_back = False
 
-                    # out_frame[self.sero:-self.sero,(240+179):-(240+179)] = self.final_car
 
                         
                     cv2.imshow('surround view', cv2.resize(out_frame, dsize=(300,500)))
