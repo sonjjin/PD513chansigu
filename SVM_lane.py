@@ -296,7 +296,7 @@ class SurroundView:
             mask = cv2.inRange(hsv, (10, 150, 50), (30, 255, 255))
         elif color == 'yellow':
             # mask = cv2.inRange(hsv, (40, 80, 105), (160, 255, 255))
-            mask = cv2.inRange(hsv, (40, 80, 105), (160, 255, 255))
+            mask = cv2.inRange(hsv, (40, 60, 80), (160, 255, 255))
 
 
         imask = mask > 0
@@ -532,7 +532,7 @@ class SurroundView:
                 # merge
                 _, self.old_frame = self.merge(head, tail, left, right, self.car)
 
-                self.old_frame = cv.cvtColor(self.old_frame, cv.COLOR_BGR2RGB)
+                # self.old_frame = cv.cvtColor(self.old_frame, cv.COLOR_BGR2RGB)
                 self.old_gray = cv.cvtColor(self.old_frame, cv.COLOR_BGR2GRAY)
                 
                 self.old_frame_head = cv.cvtColor(head[:,250:-250], cv.COLOR_BGR2RGB)
@@ -552,7 +552,10 @@ class SurroundView:
                 
                 self.is_first = False
                 cv2.imshow('surround view', cv2.resize(self.mask, dsize=(300,500)))
-                cv2.imshow('lane', cv2.resize(self.mask, dsize=(300,500)))
+                # cv2.imshow('check', cv2.resize(self.mask, dsize=(300,500)))
+                # cv2.imshow('lane', cv2.resize(self.mask, dsize=(300,500)))
+                cv2.imshow('final', cv2.resize(self.mask, dsize=(600,500)))
+    
 
                 while True: # 무한 루프
                     keycode = cv2.waitKey() # 키보드 입력 반환 값 저장
@@ -584,6 +587,7 @@ class SurroundView:
              
                 try:
                     step = -10
+                    old_frame = frame
                     self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
                     #import pdb;pdb.set_trace()
                     
@@ -605,11 +609,23 @@ class SurroundView:
 
                     # image show
                     cv2.imshow('surround view', cv2.resize(out_frame, dsize=(300,500)))
-                    cv2.imshow('lane', cv2.resize(frame_with_lane, dsize=(300,500)))
+                    # cv2.imshow('check', cv2.resize(old_frame, dsize=(300,500)))
+                    # cv2.imshow('lane', cv2.resize(frame_with_lane, dsize=(300,500)))
+                    t = cv2.resize(old_frame, dsize=(300,500))
+                    # print(t.shape)
+                    tt = cv2.resize(frame_with_lane, dsize=(300,500))
+                    tt = cv2.cvtColor(tt, cv2.COLOR_GRAY2BGR)
+                    # print(tt.shape)
+
+                    ttt = np.concatenate([t, tt], 1)
+                    cv2.imshow('final',ttt)
 
                     # image save                
                     cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/surround view.png', out_frame)
+                    cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/check.png', old_frame)
                     cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/lane.png', frame_with_lane)
+                    cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/final.png', ttt)
+
                     
                     cv2.waitKey(1)
                     print('nice\n')
