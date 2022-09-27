@@ -334,12 +334,20 @@ class SurroundView:
     """
     lane detection
     """
+    def image_clean(self, input):
+        H, W = input.shape[:2]
+        # using morphology
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9,9))
+        clean = cv2.morphologyEx(input, cv2.MORPH_OPEN, kernel)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15,15))
+        img_clean = cv2.morphologyEx(clean, cv2.MORPH_CLOSE, kernel)
+        
+        return img_clean
 
+    def hsv(self, img, color='yellow'):
 
-    def hsv(self, img, color='green'):
         hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
 
-        # 휴리스틱으로 구한거 같은데? 오진다,
         if color == 'green':
             mask = cv2.inRange(hsv, (25, 60, 50), (86, 255, 255))
         elif color == 'red':
@@ -348,22 +356,15 @@ class SurroundView:
             mask = cv2.inRange(hsv, (10, 150, 50), (30, 255, 255))
         elif color == 'yellow':
             mask = cv2.inRange(hsv, (80, 40, 145), (150, 255, 255))
-            # mask = cv2.inRange(hsv, (80, 100, 145), (150, 255, 255))
 
         imask = mask > 0
-        output = np.zeros_like(hsv, np.uint8)
-        output[imask] = 255
+        temp = np.zeros_like(hsv, np.uint8)
+        temp[imask] = 255
+        output = self.image_clean(temp[:,:,0])
 
         return output[:,:,0]
 
-    def clean(self, img):
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9,9)) # kernel 만들기
-        clean = cv2.morphologyEx(img, cv2.MORPH_OPEN, kernel) # 이럴거면 왜 이미지 하나로 opening, closing하는지?
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15,15))
-        output = cv2.morphologyEx(clean, cv2.MORPH_CLOSE, kernel)
-        # cv2.imwrite('test.png', clean)
-        return output
-
+    """
     def fit_poly(self, img_shape, leftx, lefty, rightx, righty):
         ### TO-DO: Fit a second order polynomial to each with np.polyfit() ###
         left_fit = np.polyfit(lefty, leftx, 2)
@@ -566,7 +567,7 @@ class SurroundView:
         output = img_ori
 
         return output, lane
-
+    """
 
     def process(self):
         # 최초 시작
@@ -628,144 +629,60 @@ class SurroundView:
                 img4 = self.cur_img_left
                 img2 = self.cur_img_right
                 img3 = self.cur_img_back  
-
-                #img1 = cv2.resize(img1, dsize=(600, 800),interpolation=cv2.INTER_LINEAR)
-                #img1 = img1[200:-200,150:-150]
-                #img3 = cv2.resize(img3, dsize=(600, 800),interpolation=cv2.INTER_LINEAR)
-                #img3 = img3[200:-200,150:-150]
-                #img1 = cv2.resize(img1, dsize=(300, 400),interpolation=cv2.INTER_LINEAR)
-                #img3 = cv2.resize(img3, dsize=(300, 400),interpolation=cv2.INTER_LINEAR)
-
-                # Lucas kanade 저 좌표들이 뜻 하는게 무엇인지 파악할 필요가 있음
-                p0 = np.zeros((32,1,2)).astype(np.float32)
-                p0[0] = [400,680]
-                p0[1] = [600,680]
-                p0[2] = [1000,680]
-                p0[3] = [1200,680]
 		
-                for i in range(1,8):
-                    p0[i*4+0] = p0[0]+[20*i,0]
-                    p0[i*4+1] = p0[1]+[20*i,0]
-                    p0[i*4+2] = p0[2]+[10*i,0]
-                    p0[i*4+3] = p0[3]+[10*i,0]
-		
+                # image wrapping
                 head = self.front(img1)
                 tail = self.rear(img3)
                 left = self.side_left(img4)
                 right = self.side_right(img2)
 
-                _, frame = self.merge(head,tail,left,right,self.car)
-                # frame_origin = frame.copy()
-                frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        
-                frame_gray_head = cv.cvtColor(head, cv.COLOR_BGR2GRAY)
-		
-                # calculate optical flow
-                # p0 = cv2.goodFeaturesToTrack(self.old_gray_head, mask = None, **self.feature_params)
-                """
-                window size (5,5)로 lucas-kanade algorithm사용
-                지정한 점들이 어디로 움직였는지 보여줌
-                """
-                p1, st, err = cv.calcOpticalFlowPyrLK(self.old_gray, frame_gray, p0, None, **self.lk_params) 
 
-                good_new = p1[st==1]
-                good_old = p0[st==1]
-
-                # print((good_old-good_new).shape)
-                # try:
-                # print("a")
-                #dx,dy = np.median((good_old-good_new).squeeze()[:,0]),np.median((good_old-good_new).squeeze()[:,1])
-                # dx,dy = np.median((good_old-good_new)[:,0]),np.median((good_old-good_new)[:,1])
-                # dx,dy = int(round(dx)),int(round(dy))
-                    #if dx**2 > 9 or dy**2 > 9:
-                    #    frame = frame
-                    #else:
-                    #    frame = frame#fill(old_frame,frame,dx,dy)
-                # print(dy)
+                # lane detection
+                head_lane = self.hsv(head)
+                tail_lane = self.hsv(tail)
+                left_lane = self.hsv(left)
+                right_lane = self.hsv(right)
                 
-                    #old_frame[1:] = old_frame[:-1]
-                '''
-                if dy < 0:                
-                    self.old_frame[min(dy,-1)*-1:] = self.old_frame[:min(dy,-1)]
-                    else:
-                    self.old_frame[:max(dy,1)*-1] = self.old_frame[max(dy,1):]
-                '''
-                step = -10
-                self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
-                #import pdb;pdb.set_trace()
+                # image mrege
+                _, frame = self.merge(head, tail, left, right, self.car)
+                _, frame_with_lane = self.merge(head, tail, left, right, self.car)
                 
-                # out_frame = frame
-                frame = frame*self.mask+self.old_frame*self.mask_inverse
-                out_frame = frame
                 
-                self.old_gray = frame_gray.copy()
-                self.old_frame = frame.copy()
-
-
-                self.old_frame_head = cv.cvtColor(head[:,250:-250], cv.COLOR_BGR2RGB)
-                self.old_gray_head = cv.cvtColor(self.old_frame_head, cv.COLOR_BGR2GRAY)
-            
+                try:
+                    step = -10
+                    self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
+                    #import pdb;pdb.set_trace()
                     
-                # out_frame = frame
-                # out_frame = self.old_frame
-                if self.chk_contours == -99:
-                    self.contours = 1-(cv2.dilate(self.mask_inverse,None,iterations=10)-self.mask_inverse)
-                            
-                # out_frame = out_frame*self.contours
-                #out_frame = out_frame-(remask-cv2.erode(remask,None,iterations=10))*255
-                out_frame[out_frame<0]=0
-                
-                #import pdb;pdb.set_trace()
-                #cv2.imwrite('test.png',out_frame)
-                            
-                
-                input_yellow = self.hsv(out_frame, color='yellow')  
-                
-                square_yellow, is_square = self.detect_square(input_yellow)
-                
-                if is_square:
-                    center_yellow = np.int0(np.mean(square_yellow, axis=0))
-                
-                    # cv2.drawContours(out_frame, [square_yellow], 0, (0,0,255), 3, cv2.LINE_AA)
-                # print(frame_origin.shape)
+                    # out_frame = frame
+                    frame = frame*self.mask+self.old_frame*self.mask_inverse
+                    out_frame = frame
 
-                # img_w_lane = self.lane_detect(head.copy())
-                
+
+                    out_frame[out_frame < 0] = 0
+                    frame_with_lane[frame_with_lane < 0] = 0
+                                            
+                    self.prev_surround_view = out_frame
+                    out_frame[self.head_H-25:self.head_H+self.car_height-25,left.shape[1]:left.shape[1]+self.car_width,:] = self.car_final
+                    out_frame = out_frame[:,70:-70,:]
+                    self.is_front = False
+                    self.is_left = False
+                    self.is_right = False
+                    self.is_back = False
+
+                    # image show
+                    cv2.imshow('surround view', cv2.resize(out_frame, dsize=(300,500)))
+                    cv2.imshow('lane', cv2.resize(frame_with_lane, dsize=(300,500)))
+
+                    # image save                
+                    cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/surround view.png', out_frame)
+                    cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/lane.png', frame_with_lane)
                     
-                self.prev_surround_view = out_frame
-                out_frame[self.head_H-25:self.head_H+self.car_height-25,left.shape[1]:left.shape[1]+self.car_width,:] = self.car_final
-                out_frame = out_frame[:,70:-70,:]
-                self.is_front = False
-                self.is_left = False
-                self.is_right = False
-                self.is_back = False
-
-                # out_frame[self.sero:-self.sero,(240+179):-(240+179)] = self.final_car
-
-                    
-                cv2.imshow('surround view', cv2.resize(out_frame, dsize=(300,500)))
-                # cv2.imshow('lane', cv2.resize(img_w_lane, dsize=(300,500)))
-
-                # cv2.imshow('x',left)
-                # cv2.imshow('xx',right)
-
-                # cv2.imshow('surround view',cv2.resize(self.mask_inverse, dsize=(300, 500),interpolation=cv2.INTER_LINEAR))
-                '''			
-                for ii in range(p0.shape[0]):			
-                    out_frame = cv2.circle(out_frame, (p0[ii][0][0],p0[ii][0][1]), 10, (0,0,255), 20)
-                        for ii in range(p1.shape[0]):			
-                    out_frame = cv2.circle(out_frame, (p1[ii][0][0],p1[ii][0][1]), 10, (255,0,0), 20)
-                        '''
-                cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/x.png', out_frame)
-                # cv2.imshow('surround view',cv2.resize(out_frame, dsize=(300, 500),interpolation=cv2.INTER_LINEAR))
-                cv2.waitKey(1)
-                #cv2.imwrite('/home/ka/tttt.png',out_frame)
-                #import pdb;pdb.set_trace()
-                print('nice\n')
+                    cv2.waitKey(1)
+                    print('nice\n')
                 
-                # except:
-                #     kkkkk = 1 
-                #     print('error')
+                except:
+                    kkkkk = 1 
+                    print('error')
 		
         else:
             print("NOT ALL IMAGES RECIEVED YET.") 
