@@ -135,26 +135,6 @@ class SurroundView:
 		maxLevel = 2,
 		criteria = (cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03))
         #self.final_car = cv2.resize(self.car, dsize=(420, 700),interpolation=cv2.INTER_LINEAR)
-	
-    def hsv(self, img, color='green'):
-        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-
-        # 휴리스틱으로 구한거 같은데? 오진다,
-        if color == 'green':
-            mask = cv2.inRange(hsv, (25, 60, 50), (86, 255, 255))
-        elif color == 'red':
-            mask = cv2.inRange(hsv, (115, 100, 50), (130, 255, 255))
-        elif color == 'blue':
-            mask = cv2.inRange(hsv, (10, 150, 50), (30, 255, 255))
-        elif color == 'yellow':
-            # mask = cv2.inRange(hsv, (80, 40, 145), (150, 255, 255))
-            mask = cv2.inRange(hsv, (80, 100, 145), (150, 255, 255))
-
-        imask = mask > 0
-        output = np.zeros_like(hsv, np.uint8)
-        output[imask] = 255
-
-        return output[:,:,0]
 
     def detect_square(self, input):
         min_area = 740
@@ -306,26 +286,48 @@ class SurroundView:
 
     
     def merge(self, head, tail, left, right, car):
-        # horizontal = np.concatenate([np.zeros((640,179,3)),left,np.zeros((640,236,3)),right,np.zeros((640,179,3))],1)
-        side_H, side_W, _ = left.shape
-        head_H, head_W, _ = head.shape
-        total_width = self.car_width+side_W+side_W
-        
-        horizontal = np.concatenate([left,np.zeros((side_H,self.car_width,3)),right],1)
-        horizontal = cv2.resize(horizontal, dsize=(horizontal.shape[1],800), interpolation = cv2.INTER_LINEAR)
-        tail = cv2.resize(tail, dsize=(total_width,600), interpolation = cv2.INTER_LINEAR)
-        head = cv2.resize(head, dsize=(total_width,600), interpolation = cv2.INTER_LINEAR)
-        self.head_H, _, _ = head.shape
-        #head = head/255#np.concatenate([np.zeros((400,(800-500)//2,3)),head/255,np.zeros((400,(800-500)//2,3))],1)
-        
-        # head_empty = np.zeros((140,head.shape[1],3)).astype(np.uint8)
-        # tail_empty = np.zeros((140,tail.shape[1],3)).astype(np.uint8)
-        # bev = np.concatenate([head,head_empty,horizontal,tail_empty,tail],0)
-        bev_wo_car = np.concatenate([head, horizontal, tail], 0)
-        bev = bev_wo_car.copy()
-        bev[head.shape[0]-25:head.shape[0]+self.car_height-25,side_W:side_W+self.car_width,:] = self.car_final
-        bev = (bev).astype(np.uint8)
-        bev_wo_car = (bev_wo_car).astype(np.uint8)
+        if head.ndim == 3:
+            # horizontal = np.concatenate([np.zeros((640,179,3)),left,np.zeros((640,236,3)),right,np.zeros((640,179,3))],1)
+            side_H, side_W, _ = left.shape
+            # head_H, head_W, _ = head.shape
+            total_width = self.car_width+side_W+side_W
+            
+            horizontal = np.concatenate([left,np.zeros((side_H,self.car_width,3)),right],1)
+            horizontal = cv2.resize(horizontal, dsize=(horizontal.shape[1],800), interpolation = cv2.INTER_LINEAR)
+            tail = cv2.resize(tail, dsize=(total_width,600), interpolation = cv2.INTER_LINEAR)
+            head = cv2.resize(head, dsize=(total_width,600), interpolation = cv2.INTER_LINEAR)
+            self.head_H, _, _ = head.shape
+            #head = head/255#np.concatenate([np.zeros((400,(800-500)//2,3)),head/255,np.zeros((400,(800-500)//2,3))],1)
+            
+            # head_empty = np.zeros((140,head.shape[1],3)).astype(np.uint8)
+            # tail_empty = np.zeros((140,tail.shape[1],3)).astype(np.uint8)
+            # bev = np.concatenate([head,head_empty,horizontal,tail_empty,tail],0)
+            bev_wo_car = np.concatenate([head, horizontal, tail], 0)
+            bev = bev_wo_car.copy()
+            bev[head.shape[0]-25:head.shape[0]+self.car_height-25,side_W:side_W+self.car_width,:] = self.car_final
+            bev = (bev).astype(np.uint8)
+            bev_wo_car = (bev_wo_car).astype(np.uint8)
+        if head.ndim == 2:
+            # horizontal = np.concatenate([np.zeros((640,179,3)),left,np.zeros((640,236,3)),right,np.zeros((640,179,3))],1)
+            side_H, side_W = left.shape
+            # head_H, head_W, _ = head.shape
+            total_width = self.car_width+side_W+side_W
+            
+            horizontal = np.concatenate([left,np.zeros((side_H,self.car_width)),right],1)
+            horizontal = cv2.resize(horizontal, dsize=(horizontal.shape[1],800), interpolation = cv2.INTER_LINEAR)
+            tail = cv2.resize(tail, dsize=(total_width,600), interpolation = cv2.INTER_LINEAR)
+            head = cv2.resize(head, dsize=(total_width,600), interpolation = cv2.INTER_LINEAR)
+            self.head_H, _ = head.shape
+            #head = head/255#np.concatenate([np.zeros((400,(800-500)//2,3)),head/255,np.zeros((400,(800-500)//2,3))],1)
+            
+            # head_empty = np.zeros((140,head.shape[1],3)).astype(np.uint8)
+            # tail_empty = np.zeros((140,tail.shape[1],3)).astype(np.uint8)
+            # bev = np.concatenate([head,head_empty,horizontal,tail_empty,tail],0)
+            bev_wo_car = np.concatenate([head, horizontal, tail], 0)
+            bev = bev_wo_car.copy()
+            # bev[head.shape[0]-25:head.shape[0]+self.car_height-25,side_W:side_W+self.car_width] = self.car_final
+            bev = (bev).astype(np.uint8)
+            bev_wo_car = (bev_wo_car).astype(np.uint8)
         # tt = np.zeros((3300, 1600))
         #bev = Image.fromarray(bev)
         return bev, bev_wo_car
@@ -355,14 +357,16 @@ class SurroundView:
         elif color == 'blue':
             mask = cv2.inRange(hsv, (10, 150, 50), (30, 255, 255))
         elif color == 'yellow':
-            mask = cv2.inRange(hsv, (80, 40, 145), (150, 255, 255))
+            # mask = cv2.inRange(hsv, (40, 80, 105), (160, 255, 255))
+            mask = cv2.inRange(hsv, (40, 80, 105), (160, 255, 255))
+
 
         imask = mask > 0
         temp = np.zeros_like(hsv, np.uint8)
         temp[imask] = 255
         output = self.image_clean(temp[:,:,0])
 
-        return output[:,:,0]
+        return output
 
     """
     def fit_poly(self, img_shape, leftx, lefty, rightx, righty):
@@ -582,7 +586,6 @@ class SurroundView:
                 img2 = self.cur_img_right
                 img3 = self.cur_img_back
 	
-		
                 head = self.front(img1)
                 tail = self.rear(img3)
                 left = self.side_left(img4)
@@ -645,7 +648,7 @@ class SurroundView:
                 
                 # image mrege
                 _, frame = self.merge(head, tail, left, right, self.car)
-                _, frame_with_lane = self.merge(head, tail, left, right, self.car)
+                _, frame_with_lane = self.merge(head_lane, tail_lane, left_lane, right_lane, self.car)
                 
                 
                 try:
