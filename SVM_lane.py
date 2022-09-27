@@ -166,8 +166,7 @@ class SurroundView:
 
         return square, is_square
 
-    # callback 함수
-    
+    # callback function
     def img_front_callback(self, data):
         if not self.is_front:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
@@ -196,20 +195,6 @@ class SurroundView:
             # print("rear", self.cur_img_back.dtype) 
             self.is_back = True
 
-
-    # surround view에서 빈 부분 채우는 함수인듯
-    def fill(self,old_frame,frame,dx,dy):
-        finx = dx
-        if finx == 0:
-            finx = old_frame.shape[1]
-        finy = dy
-        if finy == 0:
-            finy = old_frame.shape[0]
-        frame[650:,550:]=old_frame[650+dy:finy,550+dx:finx]
-        frame[650:,-dx:250]=old_frame[650+dy:finy,max(dx,0):250+dx]
-    
-        return frame
-
     # front ~ side_right bird eye view로 바꾸는거
     def front(self, img):
         IMAGE_H, IMAGE_W, _ = img.shape
@@ -233,11 +218,8 @@ class SurroundView:
     def rear(self, img):
         IMAGE_H, IMAGE_W, _ = img.shape
     
-        #img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
-        src = self.backward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
-        dst = self.backward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
-        #src = np.float32([[210,115], [210,180], [150,120], [150,175]])
-        #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
+        src = self.backward_src
+        dst = self.backward_dst
         M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
         Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
     
@@ -249,10 +231,8 @@ class SurroundView:
         return output#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
         
     def side_left(self, img):
-        
         IMAGE_H, IMAGE_W, _ = img.shape
-        #src = np.float32([[0, 299], [399, 299], [0, 0], [399, 0]])
-        #dst = np.float32([[0, 299], [399, 299], [100, 0], [299, 0]])
+
         src = self.left_src
         dst = self.left_dst
         M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
@@ -269,9 +249,7 @@ class SurroundView:
     def side_right(self, img):
         
         IMAGE_H, IMAGE_W, _ = img.shape
-        
-        #src = np.float32([[0, 299], [399, 299], [0, 0], [399, 0]])
-        #dst = np.float32([[0, 299], [399, 299], [100, 0], [299, 0]])
+
         src = self.right_src
         dst = self.right_dst
         M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
@@ -307,6 +285,7 @@ class SurroundView:
             bev[head.shape[0]-25:head.shape[0]+self.car_height-25,side_W:side_W+self.car_width,:] = self.car_final
             bev = (bev).astype(np.uint8)
             bev_wo_car = (bev_wo_car).astype(np.uint8)
+            
         if head.ndim == 2:
             # horizontal = np.concatenate([np.zeros((640,179,3)),left,np.zeros((640,236,3)),right,np.zeros((640,179,3))],1)
             side_H, side_W = left.shape
@@ -593,7 +572,6 @@ class SurroundView:
                 
                 # merge
                 _, self.old_frame = self.merge(head, tail, left, right, self.car)
-                # old_frame_out = self.old_frame
 
                 self.old_frame = cv.cvtColor(self.old_frame, cv.COLOR_BGR2RGB)
                 self.old_gray = cv.cvtColor(self.old_frame, cv.COLOR_BGR2GRAY)
@@ -601,11 +579,6 @@ class SurroundView:
                 self.old_frame_head = cv.cvtColor(head[:,250:-250], cv.COLOR_BGR2RGB)
                 self.old_gray_head = cv.cvtColor(self.old_frame_head, cv.COLOR_BGR2GRAY)
                 print(self.old_gray_head.shape)
-                
-                # head0 = self.front(np.ones(img1.shape)*255*255)
-                # tail0 = cv2.flip(self.rear(np.ones(img3.shape)*255*255),0)
-                # left0 = cv2.flip(self.side_left(np.ones(img4.shape)*255),0)
-                # right0 = cv2.flip(self.side_right(np.ones(img2.shape)*255),0)
 
                 
                 head0 = self.front(np.ones(img1.shape))
@@ -649,8 +622,7 @@ class SurroundView:
                 # image mrege
                 _, frame = self.merge(head, tail, left, right, self.car)
                 _, frame_with_lane = self.merge(head_lane, tail_lane, left_lane, right_lane, self.car)
-                
-                
+             
                 try:
                     step = -10
                     self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
@@ -684,7 +656,6 @@ class SurroundView:
                     print('nice\n')
                 
                 except:
-                    kkkkk = 1 
                     print('error')
 		
         else:
