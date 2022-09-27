@@ -23,7 +23,6 @@ class SurroundView:
         # self.cur_img_right = cv2.imread('right.jpg', cv2.IMREAD_COLOR)
         # self.cur_img_back = cv2.imread('rear.jpg', cv2.IMREAD_COLOR)
 
-        
         # 초기화
         
         self.cur_img_front = None
@@ -136,36 +135,6 @@ class SurroundView:
 		criteria = (cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03))
         #self.final_car = cv2.resize(self.car, dsize=(420, 700),interpolation=cv2.INTER_LINEAR)
 
-    def detect_square(self, input):
-        min_area = 740
-        H, W = input.shape[:2]
-        # image morpholgy로 라인만 찾는거 같음
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9,9)) # kernel 만들기
-        clean = cv2.morphologyEx(input, cv2.MORPH_OPEN, kernel) # 이럴거면 왜 이미지 하나로 opening, closing하는지?
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15,15))
-        clean = cv2.morphologyEx(input, cv2.MORPH_CLOSE, kernel)
-
-        contours = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) #RETR_EXTERNAL: 외각선만 찾기, CHAIN_APPROX_SIMPLE: 수직선, 수평선, 대각선에 대해 끝점만 저장
-        contours = contours[0] if len(contours) == 2 else contours[1]
-
-        square = None
-        square_center = 0
-        is_square = False
-
-        for c in contours:
-            rot_rect = cv2.minAreaRect(c) # contour를 둘러싸는 최소한 크기의 직사각형 만들기
-            temp_area = rot_rect[1][0] * rot_rect[1][1]
-            temp_square = cv2.boxPoints(rot_rect)
-            temp_center = np.int0(np.mean(temp_square, axis=0))
-
-            if temp_area >= min_area and temp_center[0] > square_center:
-                square = np.int0(temp_square)
-                square_center = temp_center[0]
-                area = temp_area
-                is_square = True
-
-        return square, is_square
-
     # callback function
     def img_front_callback(self, data):
         if not self.is_front:
@@ -262,7 +231,6 @@ class SurroundView:
         # warped_img = cv2.warpPerspective(img, M, (IMAGE_H, IMAGE_W)) # Image warping
         return output
 
-    
     def merge(self, head, tail, left, right, car):
         if head.ndim == 3:
             # horizontal = np.concatenate([np.zeros((640,179,3)),left,np.zeros((640,236,3)),right,np.zeros((640,179,3))],1)
