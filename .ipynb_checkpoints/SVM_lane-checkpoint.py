@@ -297,7 +297,8 @@ class SurroundView:
         elif color == 'yellow':
             # mask = cv2.inRange(hsv, (40, 80, 105), (160, 255, 255))
             mask = cv2.inRange(hsv, (40, 60, 80), (160, 255, 255))
-        
+
+
         imask = mask > 0
         temp = np.zeros_like(hsv, np.uint8)
         temp[imask] = 255

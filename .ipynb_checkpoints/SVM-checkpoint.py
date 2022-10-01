@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#-*- coding: utf-8 -*-
 
 import cv2
 import cv2 as cv
@@ -8,6 +9,7 @@ import rospy
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
+
 class SurroundView:
     def __init__(self):
         # subscribe the image
@@ -16,63 +18,112 @@ class SurroundView:
         self.img_left_sub = rospy.Subscriber('/left_cam/image_raw', Image, self.img_left_callback)
         self.img_right_sub = rospy.Subscriber('/right_cam/image_raw', Image, self.img_right_callback)
         self.img_back_sub = rospy.Subscriber('/rear_cam/image_raw', Image, self.img_back_callback)
+        # self.cur_img_front = cv2.imread('front.jpg', cv2.IMREAD_COLOR)
+        # self.cur_img_left = cv2.imread('left.jpg', cv2.IMREAD_COLOR)
+        # self.cur_img_right = cv2.imread('right.jpg', cv2.IMREAD_COLOR)
+        # self.cur_img_back = cv2.imread('rear.jpg', cv2.IMREAD_COLOR)
+
         
         # 초기화
+        
         self.cur_img_front = None
         self.cur_img_left = None
         self.cur_img_right = None
         self.cur_img_back = None
-   
+        
         self.old_frame = None
         self.old_gray = None
 
         self.is_first = True
+        
         self.is_front = False
         self.is_left = False
         self.is_right = False
         self.is_back = False
+        
+        # self.is_front = True
+        # self.is_left = True
+        # self.is_right = True
+        # self.is_back = True
+
 
         # 이부분이 먼지 모르겠음 ㅋㅋ
         # 앞뒤 카메라 사각형 4점 좌표
-        # 
+        
         self.forward_src = np.float32([
-            (133, 89),
-            (506, 89),
-            (-100, 480),
-            (740, 480)
-        ])
-
-        self.forward_dst = np.float32([
-            (100, 0),
-            (540, 0),
-            (100, 480),
-            (540, 480)
+            (125, 180),
+            (0, 440),
+            (500, 180),
+            (640, 440)
         ])
 
         self.backward_src = np.float32([
-            (140, 89),
-            (460, 89),
-            (-106, 480),
-            (740, 480)
+            (125, 180),
+            (0, 440),
+            (500, 180),
+            (640, 440)
         ])
 
+        self.left_src = np.float32([
+            (100, 45),
+            (5,415),
+            (510, 45),
+            (620, 410)
+        ])
+
+        self.right_src = np.float32([
+            (100, 45),
+            (5,415),
+            (510, 45),
+            (620, 410)
+        ])
+
+        self.forward_dst = np.float32([
+            (70, 90),
+            (170, 440),
+            (530, 90),
+            (470, 445)
+        ])
+
+        # self.backward_dst = self.forward_dst
         self.backward_dst = np.float32([
-            (100, 0),
-            (540, 0),
-            (100, 480),
-            (540, 480)
+            (90, 90),
+            (180, 440),
+            (530, 85),
+            (460, 445)
+        ])    
+
+        self.left_dst = np.float32([
+            (140, 60),
+            (140, 460),
+            (480, 65),
+            (480, 445)
+        ])
+        
+        self.right_dst = np.float32([
+            (140, 60),
+            (140, 450),
+            (480, 65),
+            (480, 460)
         ])
 
+        self.right_shift = 25
+        self.left_shift = 10
         
         self.contours = 0
         self.chk_contours = -99
-
-	
+        
         # 자동차 이미지 불러오는 것 인듯
         #self.car = cv2.imread('./car.jpg')
-        self.car = cv2.imread('/home/ka/catkin_ws/src/budicar.png')
-        self.car = cv2.resize(self.car, dsize=(480, 640),interpolation=cv2.INTER_LINEAR)
-        self.final_car = cv2.resize(self.car, dsize=(716, 910),interpolation=cv2.INTER_LINEAR)
+        self.car = cv2.imread('/home/juntae/catkin_ws/src/caffeine/src/car.png', cv2.IMREAD_COLOR)
+        self.car = cv2.rotate(self.car, cv2.ROTATE_180)
+        # car_final = cv2.resize(self.car, (910, 592), interpolation=cv2.INTER_LINEAR)
+ 
+        self.car_width = 650
+        self.car_height = 640+170
+        self.car_final = cv2.resize(self.car, (self.car_width, self.car_height), interpolation=cv2.INTER_LINEAR)
+        self.head_H = 0
+
 
         self.feature_params = dict(maxCorners = 30, 
                                    qualityLevel = 0.001,
@@ -98,7 +149,7 @@ class SurroundView:
         elif color == 'yellow':
             # mask = cv2.inRange(hsv, (80, 40, 145), (150, 255, 255))
             mask = cv2.inRange(hsv, (80, 100, 145), (150, 255, 255))
-        print(mask.shape)
+
         imask = mask > 0
         output = np.zeros_like(hsv, np.uint8)
         output[imask] = 255
@@ -138,30 +189,31 @@ class SurroundView:
     # callback 함수
     
     def img_front_callback(self, data):
-        img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
-        self.cur_img_front = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-	# print(self.cur_img_front.dtype) 
-        self.is_front = True
+        if not self.is_front:
+            img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
+            self.cur_img_front = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            # print("front",  self.cur_img_front.dtype) 
+            self.is_front = True
 
     def img_left_callback(self, data):
         if not self.is_left:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
             self.cur_img_left = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
-	    #print(self.cur_img_left.dtype) 
+            # print("left", self.cur_img_left.dtype) 
             self.is_left = True
     
     def img_right_callback(self, data):
         if not self.is_right:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
             self.cur_img_right = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
-	    #print(self.cur_img_right.dtype) 
+            # print("right", self.cur_img_right.dtype) 
             self.is_right = True
     
     def img_back_callback(self, data):
         if not self.is_back:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
             self.cur_img_back = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
-	    #print(self.cur_img_back.dtype) 
+            # print("rear", self.cur_img_back.dtype) 
             self.is_back = True
 
 
@@ -179,14 +231,31 @@ class SurroundView:
         return frame
 
     # front ~ side_right bird eye view로 바꾸는거
-    def front(self,img):
+    def front(self, img):
         IMAGE_H, IMAGE_W, _ = img.shape
-    
-	    #print(img.shape)
-    	#img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
+
+        #print(img.shape)
+        #img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
 
         src = self.forward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
         dst = self.forward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
+        #src = np.float32([[210,115], [210,180], [150,120], [150,175]])
+        #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
+        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+
+        IMAGE_H, IMAGE_W, _ = img.shape
+
+        warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
+        output = warped_img[90:,:-10]
+        return output#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
+
+    def rear(self, img):
+        IMAGE_H, IMAGE_W, _ = img.shape
+    
+        #img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
+        src = self.backward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
+        dst = self.backward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
         #src = np.float32([[210,115], [210,180], [150,120], [150,175]])
         #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
         M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
@@ -195,82 +264,77 @@ class SurroundView:
         IMAGE_H, IMAGE_W, _ = img.shape
     
         warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
-    
-        return warped_img#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
-
-    
-    def rear(self,img):
-        IMAGE_H, IMAGE_W, _ = img.shape
-    
-    	#img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
-        src = self.backward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
-        dst = self.backward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
-    	#src = np.float32([[210,115], [210,180], [150,120], [150,175]])
-        #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
-        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
-        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
-    
-        IMAGE_H, IMAGE_W, _ = img.shape
-    
-        warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
-    
-        return warped_img#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
-    
-    def side_left(self,img):
+        output = warped_img[90:,:]
+        output = cv2.rotate(output, cv2.ROTATE_180)
+        return output#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
+        
+    def side_left(self, img):
         
         IMAGE_H, IMAGE_W, _ = img.shape
         #src = np.float32([[0, 299], [399, 299], [0, 0], [399, 0]])
         #dst = np.float32([[0, 299], [399, 299], [100, 0], [299, 0]])
-        src = np.float32([[0, 299], [399, 299], [0, 0], [399, 0]])
-        dst = np.float32([[30, 299], [369, 299], [0, 0], [399, 0]])
+        src = self.left_src
+        dst = self.left_dst
         M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
         Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation.mkv
         
         warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H)) # Image warping
-        warped_img = cv2.rotate(warped_img, cv2.ROTATE_90_COUNTERCLOCKWISE)#[:,:350]
+        output = warped_img[90:,:]
+        output[self.left_shift:,:] = output[:-self.left_shift,:]
+        output = cv2.rotate(output, cv2.ROTATE_90_COUNTERCLOCKWISE)#[:,:350]
+        # warped_img = cv2.warpPerspective(img, M, (IMAGE_H, IMAGE_W)) # Image warping
         
-        return warped_img
+        return output
         
-    def side_right(self,img):
+    def side_right(self, img):
         
         IMAGE_H, IMAGE_W, _ = img.shape
         
         #src = np.float32([[0, 299], [399, 299], [0, 0], [399, 0]])
         #dst = np.float32([[0, 299], [399, 299], [100, 0], [299, 0]])
-        src = np.float32([[0, 299], [399, 299], [0, 0], [399, 0]])
-        dst = np.float32([[30, 299], [369, 299], [0, 0], [399, 0]])
+        src = self.right_src
+        dst = self.right_dst
         M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
         Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation.mkv
 
         warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H)) # Image warping
-        warped_img = cv2.rotate(warped_img, cv2.ROTATE_90_CLOCKWISE)#[:,:350]
-        
-        return warped_img
+        output = warped_img[90:,:]
+        output[self.right_shift:,:] = output[:-self.right_shift,:]
+        output = cv2.rotate(output, cv2.ROTATE_90_CLOCKWISE)#[:,:350]
+        # warped_img = cv2.warpPerspective(img, M, (IMAGE_H, IMAGE_W)) # Image warping
+        return output
 
-
-    def merge(self,head,tail,left,right,car):
-        horizontal = np.concatenate([np.zeros((640,179,3)),left,np.zeros((640,236,3)),right,np.zeros((640,179,3))],1)
-    	#print(head.shape)
-        #print(tail.shape)
-        tail = cv2.resize(tail, dsize=(1554,1170),interpolation=cv2.INTER_LINEAR)
     
-        #tail = tail/255#tail = tail/255
-	
-        head = cv2.resize(head, dsize=(1554,1170),interpolation=cv2.INTER_LINEAR)
+    def merge(self, head, tail, left, right, car):
+        # horizontal = np.concatenate([np.zeros((640,179,3)),left,np.zeros((640,236,3)),right,np.zeros((640,179,3))],1)
+        side_H, side_W, _ = left.shape
+        head_H, head_W, _ = head.shape
+        total_width = self.car_width+side_W+side_W
+        
+        horizontal = np.concatenate([left,np.zeros((side_H,self.car_width,3)),right],1)
+        horizontal = cv2.resize(horizontal, dsize=(horizontal.shape[1],800), interpolation = cv2.INTER_LINEAR)
+        tail = cv2.resize(tail, dsize=(total_width,600), interpolation = cv2.INTER_LINEAR)
+        head = cv2.resize(head, dsize=(total_width,600), interpolation = cv2.INTER_LINEAR)
+        self.head_H, _, _ = head.shape
         #head = head/255#np.concatenate([np.zeros((400,(800-500)//2,3)),head/255,np.zeros((400,(800-500)//2,3))],1)
         
-        head_empty = np.zeros((150,head.shape[1],3)).astype(np.uint8)
-        tail_empty = np.zeros((170,tail.shape[1],3)).astype(np.uint8)
-        bev = np.concatenate([head,head_empty,horizontal/255,tail_empty,tail],0)
-        bev = (bev*255).astype(np.uint8)
+        # head_empty = np.zeros((140,head.shape[1],3)).astype(np.uint8)
+        # tail_empty = np.zeros((140,tail.shape[1],3)).astype(np.uint8)
+        # bev = np.concatenate([head,head_empty,horizontal,tail_empty,tail],0)
+        bev_wo_car = np.concatenate([head, horizontal, tail], 0)
+        bev = bev_wo_car.copy()
+        bev[head.shape[0]-25:head.shape[0]+self.car_height-25,side_W:side_W+self.car_width,:] = self.car_final
+        bev = (bev).astype(np.uint8)
+        bev_wo_car = (bev_wo_car).astype(np.uint8)
+        # tt = np.zeros((3300, 1600))
         #bev = Image.fromarray(bev)
-    
-        return bev
+        return bev, bev_wo_car
 
     def process(self):
         # 최초 시작
         if self.is_front and self.is_left and self.is_right and self.is_back:
             if self.is_first:
+                
                 '''
                 front -> right -> rear -> left
                 '''
@@ -279,58 +343,43 @@ class SurroundView:
                 img2 = self.cur_img_right
                 img3 = self.cur_img_back
 	
-		
-                '''
-                print(img1)
-                    cv2.imwrite('/home/ka/front.jpg',img1)
-                    cv2.imwrite('/home/ka/right.jpg',img2)
-                    cv2.imwrite('/home/ka/rear.jpg',img3)
-                    cv2.imwrite('/home/ka/left.jpg',img4)
-                '''               
-                #img1 = cv2.resize(img1, dsize=(600, 800),interpolation=cv2.INTER_LINEAR)
-                #img1 = img1[200:-200,150:-150]
-                #img3 = cv2.resize(img3, dsize=(600, 800),interpolation=cv2.INTER_LINEAR)
-                #img3 = img3[200:-200,150:-150]
-                #cv2.imwrite('head.jpg',img1)
-                #img1 = cv2.resize(img1, dsize=(300, 400),interpolation=cv2.INTER_LINEAR)
-                #img3 = cv2.resize(img3, dsize=(300, 400),interpolation=cv2.INTER_LINEAR)
-                #img2 = cv2.resize(img2, dsize=(400, 300),interpolation=cv2.INTER_LINEAR)
-                #img4 = cv2.resize(img4, dsize=(400, 300),interpolation=cv2.INTER_LINEAR)
-
-                head = 255*self.front(img1)
-
-                tail = 255*cv2.flip(cv2.flip(self.rear(img3),0),1)
-                left = cv2.flip(self.side_left(img4),0)
-                right = cv2.flip(self.side_right(img2),0)
-
+                head = self.front(img1)
+                tail = self.rear(img3)
+                left = self.side_left(img4)
+                right = self.side_right(img2)
+                
                 # merge
-                self.old_frame = self.merge(head,tail,left,right,self.car)
-
-                self.sero = (self.old_frame.shape[0]-910)//2 # sero가 뭐지?
-                old_frame_out = self.old_frame
-                old_frame_out[self.sero:-self.sero,(240+179):-(240+179)] = self.final_car
-
+                _, self.old_frame = self.merge(head, tail, left, right, self.car)
+                # old_frame_out = self.old_frame
 
                 self.old_frame = cv.cvtColor(self.old_frame, cv.COLOR_BGR2RGB)
                 self.old_gray = cv.cvtColor(self.old_frame, cv.COLOR_BGR2GRAY)
                 
                 self.old_frame_head = cv.cvtColor(head[:,250:-250], cv.COLOR_BGR2RGB)
                 self.old_gray_head = cv.cvtColor(self.old_frame_head, cv.COLOR_BGR2GRAY)
-                print(self.old_gray_head.shape)
+                
+                # head0 = self.front(np.ones(img1.shape)*255*255)
+                # tail0 = cv2.flip(self.rear(np.ones(img3.shape)*255*255),0)
+                # left0 = cv2.flip(self.side_left(np.ones(img4.shape)*255),0)
+                # right0 = cv2.flip(self.side_right(np.ones(img2.shape)*255),0)
+
+                
+                head0 = self.front(np.ones(img1.shape))
+                tail0 = self.rear(np.ones(img3.shape))
+                left0 = self.side_left(np.ones(img4.shape))
+                right0 = self.side_right(np.ones(img2.shape))
+
+                _, mask = self.merge(head0,tail0,left0,right0,np.ones(self.car.shape))
+                mask_inverse = 1-mask
+                self.mask = mask
+                self.mask_inverse = mask_inverse
                 
                 self.is_first = False
-
-
-                head0 = self.front(np.ones(img1.shape)*255*255)
-                tail0 = cv2.flip(self.rear(np.ones(img3.shape)*255*255),0)
-                left0 = cv2.flip(self.side_left(np.ones(img4.shape)*255),0)
-                right0 = cv2.flip(self.side_right(np.ones(img2.shape)*255),0)
-
-                mask = self.merge(head0,tail0,left0,right0,np.ones(self.car.shape)*255)//255
-                remask = 1-mask
-                self.mask = mask
-                self.remask = remask
-                
+                cv2.imshow('surround view', cv2.resize(self.mask, dsize=(300,500)))
+                while True: # 무한 루프
+                    keycode = cv2.waitKey() # 키보드 입력 반환 값 저장
+                    if keycode == ord('i') or keycode == ord('I'): # i 또는 I
+                        break
                 
             else:
                 img1 = self.cur_img_front
@@ -358,56 +407,26 @@ class SurroundView:
                     p0[i*4+2] = p0[2]+[10*i,0]
                     p0[i*4+3] = p0[3]+[10*i,0]
 		
-                head = 255*(self.front(img1))
+                head = self.front(img1)
+                tail = self.rear(img3)
+                left = self.side_left(img4)
+                right = self.side_right(img2)
 
-                #tail = cv2.flip(self.front(img3),0)
-                tail = 255*(cv2.flip(cv2.flip(self.rear(img3),0),1))
-                left = self.side_left(img4)#cv2.flip(side_left(img4),0)
-                right = self.side_right(img2)#cv2.flip(side_right(img2),0)
-
-                frame = self.merge(head,tail,left,right,self.car)
+                _, frame = self.merge(head,tail,left,right,self.car)
                 
                 frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
         
                 frame_gray_head = cv.cvtColor(head, cv.COLOR_BGR2GRAY)
 		
-                # calculate optical flow
 
-                #p0 = cv2.goodFeaturesToTrack(self.old_gray_head, mask = None, **self.feature_params)
-                """
-                window size (5,5)로 lucas-kanade algorithm사용
-                지정한 점들이 어디로 움직였는지 보여줌
-                """
-                p1, st, err = cv.calcOpticalFlowPyrLK(self.old_gray, frame_gray, p0, None, **self.lk_params) 
-
-                good_new = p1[st==1]
-                good_old = p0[st==1]
-
-                print((good_old-good_new).shape)
                 try:
-                    #dx,dy = np.median((good_old-good_new).squeeze()[:,0]),np.median((good_old-good_new).squeeze()[:,1])
-                    dx,dy = np.median((good_old-good_new)[:,0]),np.median((good_old-good_new)[:,1])
-                    dx,dy = int(round(dx)),int(round(dy))
-                        #if dx**2 > 9 or dy**2 > 9:
-                        #    frame = frame
-                        #else:
-                        #    frame = frame#fill(old_frame,frame,dx,dy)
-                    # print(dy)
-                    
-                        #old_frame[1:] = old_frame[:-1]
-                    '''
-                    if dy < 0:                
-                        self.old_frame[min(dy,-1)*-1:] = self.old_frame[:min(dy,-1)]
-                        else:
-                        self.old_frame[:max(dy,1)*-1] = self.old_frame[max(dy,1):]
-                    '''
                     step = -10
-                    self.old_frame[step*-1:] = self.old_frame[:step] # 이전 farame의 처음 10개를 마지막 10개로 변경
+                    self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
                     
-                    #import pdb;pdb.set_trace()
-                    frame = frame*self.mask+self.old_frame*self.remask
-
-                
+                    # out_frame = frame
+                    frame = frame*self.mask+self.old_frame*self.mask_inverse
+                    out_frame = frame
+                    
                     self.old_gray = frame_gray.copy()
                     self.old_frame = frame.copy()
 
@@ -416,58 +435,56 @@ class SurroundView:
                     self.old_gray_head = cv.cvtColor(self.old_frame_head, cv.COLOR_BGR2GRAY)
                 
                         
-                    out_frame = frame
-		        
+                    # out_frame = frame
+                    # out_frame = self.old_frame
                     if self.chk_contours == -99:
-                        self.contours = 1-(cv2.dilate(self.remask,None,iterations=10)-self.remask)
+                        self.contours = 1-(cv2.dilate(self.mask_inverse,None,iterations=10)-self.mask_inverse)
                                 
-                    out_frame = out_frame*self.contours
+                    # out_frame = out_frame*self.contours
                     #out_frame = out_frame-(remask-cv2.erode(remask,None,iterations=10))*255
                     out_frame[out_frame<0]=0
+                    
                     #import pdb;pdb.set_trace()
-                    #cv2.imwrite('test.png',out_fram	e)
+                    #cv2.imwrite('test.png',out_frame)
                                 
                     
-                    input_yellow = self.hsv(out_frame, color='yellow')  
-                    
-                    square_yellow, is_square = self.detect_square(input_yellow)
-                    
-                    if is_square:
-                        center_yellow = np.int0(np.mean(square_yellow, axis=0))
-                    
-                        cv2.drawContours(out_frame, [square_yellow], 0, (0,0,255), 3, cv2.LINE_AA)
-                                
                         
                     self.prev_surround_view = out_frame
-
+                    out_frame[self.head_H-25:self.head_H+self.car_height-25,left.shape[1]:left.shape[1]+self.car_width,:] = self.car_final
+                    out_frame = out_frame[:,70:-70,:]
                     self.is_front = False
                     self.is_left = False
                     self.is_right = False
                     self.is_back = False
 
-                    out_frame[self.sero:-self.sero,(240+179):-(240+179)] = self.final_car
-            
+
                         
-                    #cv2.imshow('surround view', out_frame)
-                    #cv2.imshow('surround view',cv2.resize(self.remask*255, dsize=(300, 500),interpolation=cv2.INTER_LINEAR))
+                    cv2.imshow('surround view', cv2.resize(out_frame, dsize=(300,500)))
+                    # cv2.imshow('x',left)
+                    # cv2.imshow('xx',right)
+
+                    # cv2.imshow('surround view',cv2.resize(self.mask_inverse, dsize=(300, 500),interpolation=cv2.INTER_LINEAR))
                     '''			
                     for ii in range(p0.shape[0]):			
                         out_frame = cv2.circle(out_frame, (p0[ii][0][0],p0[ii][0][1]), 10, (0,0,255), 20)
                             for ii in range(p1.shape[0]):			
                         out_frame = cv2.circle(out_frame, (p1[ii][0][0],p1[ii][0][1]), 10, (255,0,0), 20)
                             '''
-                    cv2.imshow('surround view',cv2.resize(out_frame, dsize=(300, 500),interpolation=cv2.INTER_LINEAR))
+                    cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/x.png', out_frame)
+                    # cv2.imshow('surround view',cv2.resize(out_frame, dsize=(300, 500),interpolation=cv2.INTER_LINEAR))
                     cv2.waitKey(1)
                     #cv2.imwrite('/home/ka/tttt.png',out_frame)
                     #import pdb;pdb.set_trace()
                     print('nice\n')
                 
                 except:
-                    kkkkk = 1               
+                    kkkkk = 1 
+                    print('x')
 		
         else:
             print("NOT ALL IMAGES RECIEVED YET.") 
-
+            
+            
 if __name__ == '__main__':
     rospy.init_node('surround_view_node')
     r = rospy.Rate(10)

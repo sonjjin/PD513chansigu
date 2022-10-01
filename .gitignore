@@ -5,3 +5,5 @@ temp/
 *.png
 
 .DS_Store
+
+*.ipynb
