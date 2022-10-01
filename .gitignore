@@ -1,5 +1,7 @@
 !results/*.png
 
+!seq/front/*.png
+
 temp/
 
 *.png

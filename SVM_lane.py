@@ -635,8 +635,15 @@ class SurroundView:
                     cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/check.png', old_frame)
                     cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/lane.png', frame_with_lane)
                     cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/final.png', ttt)
+                    if self.iter == 5:
+                        cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/seq/front/' + str(self.save) + '.png', self.cur_img_front)
+                        cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/seq/right/' + str(self.save) + '.png', self.cur_img_right)
+                        cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/seq/left/' + str(self.save) + '.png', self.cur_img_left)
+                        self.save += 1
+                        self.iter = 0
+                    self.iter += 1
 
-                    
+
                     cv2.waitKey(1)
                     print('nice\n')
                 
