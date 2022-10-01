@@ -116,6 +116,8 @@ class RampTracker:
                 #     self.plt_start = True
             self.ros_rate.sleep()
 
+
+
     def threshold_hls(self, img_rgb, verbose=False):
         '''
         # Function Description
@@ -135,12 +137,13 @@ class RampTracker:
         l_thresh_max = -1
 
         # Threshold color channel
-        s_thresh_min = 60
+        s_thresh_min = 85
         s_thresh_max = 255
         # s_thresh_max = -1
 
         # Note: img is the undistorted, RGB image
         img_hls = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HLS)
+        h_channel = img_hls[:,:,0]
         l_channel = img_hls[:,:,1]
         s_channel = img_hls[:,:,2]
 
