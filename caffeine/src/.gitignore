@@ -1,0 +1,7 @@
+!results/*.png
+
+temp/
+
+*.png
+
+.DS_Store

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-#-*- coding: utf-8 -*-
 
 import cv2
 import cv2 as cv
@@ -477,4 +476,5 @@ if __name__ == '__main__':
     while not rospy.is_shutdown():
         sv.process()
         r.sleep()
-        rospy.spin()
+    
+    rospy.spin()

@@ -75,8 +75,9 @@ void  ctrl_motor_cb(const std_msgs::Float32 & ctrl_motor_msg);
 *   각도 범위   : ?? (40~140[deg])
 *   각도당 Duty : ?? (1000~2000us (1500us = 90deg / 직진))
 */ 
-int servoList[11] = {SERVO_MIN, 50, 60, 70, 80, 90, 100, 110, 120, 130, SERVO_MAX};      // 수정된 servo list
-float steerList[11] = {-0.40697,-0.37506,-0.31587,-0.23214,-0.16328,-0.017378,0.128524,0.178899,0.30116,0.384688,0.41333};  // 수정된 steer list
+int servoList[11] = {SERVO_MIN,   50,       60,     70,       80,   93,   100,      110,    120,    130, SERVO_MAX};      // 수정된 servo list
+float steerList[11] = {-0.40697,-0.37506,-0.31587,-0.23214,-0.16328,-0.01,0.128524,0.178899,0.30116,0.384688,0.41333};  // 수정된 steer list
+//float steerList[11] = {-0.40697,-0.37506,-0.31587,-0.23214,-0.16328,-0.017378,0.128524,0.178899,0.30116,0.384688,0.41333};  // 원본 steer list
 Servo servo;          // servo용 객체
 
 // 시간 측정용
@@ -85,6 +86,7 @@ unsigned long count=0;    // 시작 후 10ms당 1번씩 count
 
 // 차량 제어용 변수들
 int servoInput = 0;     
+int servoOut = 93;
 float rosInput_servo=0;   // [deg]
 
 boolean motorRunStatus;
@@ -117,7 +119,8 @@ void setup(){
   
   /* Servo Setup */
   servo.attach(PIN_SERVO);         // Servo Pin 지정
-  servo.writeMicroseconds(1500);  // Servo 위치 90도로 초기화
+//  servo.writeMicroseconds(1500);  // Servo 위치 90도로 초기화
+  setSteer(0.0);
   
   /* Motor Driver Setup */
   pinMode(PIN_MOTOR_PWM, OUTPUT);   // Motor Pwm pin 지정, analogWrite 쓸 때 자동 지정되긴 함
@@ -164,7 +167,7 @@ void loop() {
  */
 int setSteer(float steerIn){
   int numList = 11;
-  int servoOut= 90;
+  servoOut= 93;
 
   if(steerIn<steerList[0]){
     servoOut = servoList[0];
@@ -186,7 +189,7 @@ int setSteer(float steerIn){
 /**
  * Motor Pwm Duty 0~255 Setting 하는것
  *
- * @param   input     PWM Duty [-255~255]
+ * @par am   input     PWM Duty [-255~255]
  *                              -255~0은 후진으로 Setting
  *                              0~255는 전진으로 Setting
  */
@@ -280,8 +283,8 @@ void runPIDCtrl(float ref, float vehicleSpeed){
   // PID 제어값 계산 및 PWM 제어기에 넣어주기
   float u = PID_GAIN_P * error + PID_GAIN_I * iValue + PID_GAIN_D * dValue;
   
-  Serial.print("Motor PWM Set:");
-  Serial.println(u);
+//  Serial.print("Motor PWM Set:");
+//  Serial.println(u);
 
   setMotorPwm((int)u);
 
