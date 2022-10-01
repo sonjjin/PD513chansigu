@@ -24,6 +24,8 @@ class RampTracker:
 
         # subscribe the image
         self.img_front_sub = rospy.Subscriber('/front_cam/image_raw', Image, self.img_front_callback)
+        self.img_left_sub = rospy.Subscriber('/left_cam/image_raw', Image, self.img_left_callback)
+        self.img_right_sub = rospy.Subscriber('/right_cam/image_raw', Image, self.img_right_callback)
         self.cv_bridge = CvBridge() # ros image massage를 사진으로 받아오는 함수
         
         # 초기화
@@ -35,30 +37,45 @@ class RampTracker:
         # self.is_back = False
 
         ## 테스트용 ##
-        path = '/home/juntae/catkin_ws/src/caffeine/src/'
-        file = 'front_ramp.jpg'
-        img_front_array = np.fromfile(path+file, np.uint8)
-        self.img_front = cv2.imdecode(img_front_array, cv2.IMREAD_COLOR)
-        self.is_img_front = True
+        # path = '/home/juntae/catkin_ws/src/caffeine/src/'
+        # file = 'front_ramp.jpg'
+        # img_front_array = np.fromfile(path+file, np.uint8)
+        # self.img_front = cv2.imdecode(img_front_array, cv2.IMREAD_COLOR)
+        # self.is_img_front = True
 
         # 카메라 변환
-        self.src_front = np.float32([[625, 442],    # below right
-                                     [0,   442],    # below left
-                                     [149, 192],    # top   left
-                                     [478, 192]])   # top   right
+        # self.src_front = np.float32([[625, 442],    # below right
+        #                              [0,   442],    # below left
+        #                              [149, 192],    # top   left
+        #                              [478, 192]])   # top   right
         
-        self.dst_front = np.float32([[439, 460],   # below right
-                                     [201, 460],   # below left
-                                     [201, 192],    # top   left
-                                     [439, 192]])   # top   right
+        # self.dst_front = np.float32([[439, 460],   # below right
+        #                              [201, 460],   # below left
+        #                              [201, 192],    # top   left
+        #                              [439, 192]])   # top   right
+
+        self.src_front = np.float32([
+            (125, 180),
+            (0, 440),
+            (500, 180),
+            (640, 440)
+        ])
+
+        self.dst_front = np.float32([
+            (150, 90),
+            (170, 440),
+            (560, 90),
+            (470, 445)
+        ])
 
         self.m_per_pix = 0.00252 # meters per pixel in x dimension
 
         ## Stanley Parameters
         # Calculate desired steering angle
         self.wheel_base = 0.51    #[m]
-        self.gain_str = 1.0
-        self.gain_cte = 0.01     
+        self.gain_str = 0.1
+        self.gain_cte = 1.5     
+
 
         ## 최종 motor, servo 입력값
         self.ros_input_motor = 0.0    # -255 ~ 255 (pwm duty)
@@ -74,41 +91,45 @@ class RampTracker:
         while not rospy.is_shutdown():
             self.count += 1
             if self.is_img_front:
-                img_bin = self.threshold_hls(self.img_front)
+                img_bin = self.threshold_hls(self.img_front, verbose = True)
                 img_warped, M, Minv = self.warp_perspective(img_bin)
                 img_warped_croped, leftx, lefty, rightx, righty = self.detect_lane_pixels(img_warped)
                 
-                left_polyfit_refined, right_polyfit_refined, left_fitx, right_fitx, ploty \
-                = self.search_around_poly(img_warped_croped, leftx, lefty, rightx, righty, verbose=True)
+                try: 
+                    left_polyfit_refined, right_polyfit_refined, left_fitx, right_fitx, ploty \
+                    = self.search_around_poly(img_warped_croped, leftx, lefty, rightx, righty, verbose=False)
 
-                # Calculate Curvature
-                # left_curverad_real, right_curverad_real = self.measure_curvature(ploty, left_polyfit_refined, right_polyfit_refined)
-                # curverad_mean = (left_curverad_real + right_curverad_real)/2    #[m]
+                    # Calculate Curvature
+                    # left_curverad_real, right_curverad_real = self.measure_curvature(ploty, left_polyfit_refined, right_polyfit_refined)
+                    # curverad_mean = (left_curverad_real + right_curverad_real)/2    #[m]
 
-                # Calcualte deviation from center (cross track error)
-                cross_track_error = self.measure_distance_from_center(left_fitx, right_fitx, ploty)
+                    # Calcualte deviation from center (cross track error)
+                    cross_track_error = self.measure_distance_from_center(left_fitx, right_fitx, ploty)
 
-                left_theta, right_theta = self.measure_theta(ploty, left_polyfit_refined, right_polyfit_refined)
+                    left_theta, right_theta = self.measure_theta(ploty, left_polyfit_refined, right_polyfit_refined)
+                    
+                    # calculate stanley steering angle
+                    steer_ref = (left_theta + right_theta)/2
+                    steer_stanley = self.gain_str * steer_ref + np.arctan(self.gain_cte * cross_track_error)
+
+                    print(self.count)
+                    if self.count >= 10:
+                        os.system('clear')
+                        print("cross_track_error : {:.2f}m".format(cross_track_error))
+                        # print("steer_ref :{:.2f} deg".format(steer_ref*180.0/np.pi))
+                        print("left theta {:.2f}, right theta {:.2f}".format(left_theta*180/np.pi, right_theta*180/np.pi))
+                        print("Stanely Steering Angle: gain_str*steer_ref + atan(gain_cte * cte)")
+                        print("{:.2f} + {:.2f} = {:.2f} deg".format( \
+                            self.gain_str * steer_ref*180/np.pi, \
+                            np.arctan(self.gain_cte * cross_track_error)*180/np.pi, \
+                            steer_stanley * 180/np.pi))                    
+
+                        self.count = 0
+
+                    self.pub_ctrl_servo.publish(steer_stanley*180/np.pi)
                 
-                # calculate stanley steering angle
-                steer_ref = (left_theta + right_theta)/2
-                steer_stanley = self.gain_str * steer_ref + np.arctan(self.gain_cte * cross_track_error)
-
-                print(self.count)
-                if self.count >= 10:
-                    os.system('clear')
-                    print("cross_track_error : {:.2f}m".format(cross_track_error))
-                    # print("steer_ref :{:.2f} deg".format(steer_ref*180.0/np.pi))
-                    print("left theta {:.2f}, right theta {:.2f}".format(left_theta*180/np.pi, right_theta*180/np.pi))
-                    print("Stanely Steering Angle: gain_str*steer_ref + atan(gain_cte * cte)")
-                    print("{:.2f} + {:.2f} = {:.2f} deg".format( \
-                        self.gain_str * steer_ref*180/np.pi, \
-                        np.arctan(self.gain_cte * cross_track_error)*180/np.pi, \
-                        steer_stanley * 180/np.pi))                    
-
-                    self.count = 0
-
-                self.pub_ctrl_servo.publish(steer_stanley*180/np.pi)
+                except TypeError:
+                    print("Fitting failed")
                 # self.pub_ctrl_motor.publish(self.ros_input_motor)
 
                 # if self.plt_start == False:
@@ -118,52 +139,96 @@ class RampTracker:
 
 
 
+    def image_clean(self, input):
+        H, W = input.shape[:2]
+        # using morphology
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9,9))
+        clean = cv2.morphologyEx(input, cv2.MORPH_OPEN, kernel)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15,15))
+        img_clean = cv2.morphologyEx(clean, cv2.MORPH_CLOSE, kernel)
+        
+        return img_clean
+
+    # lane detection
     def threshold_hls(self, img_rgb, verbose=False):
-        '''
-        # Function Description
-        Saturation Thresholding and binarization in HLS space
+            '''
+            # Function Description
+            Saturation Thresholding and binarization in HLS space
 
-        # Parameter
-        img_rgb               = RGB, undistorted image
-        verbose               = show both S channel image and undistorted image when verbose == True
+            # Parameter
+            img_rgb               = RGB, undistorted image
+            verbose               = show both S channel image and undistorted image when verbose == True
 
-        # Return
-        combined_binary       = binarized image thresholded in Lightness & Saturation channel of HLS space 
-        '''
+            # Return
+            combined_binary       = binarized image thresholded in Lightness & Saturation channel of HLS space 
+            '''
 
-        # Threshold light channel for black
-        l_thresh_min = 0
-        # l_thresh_max = 120
-        l_thresh_max = -1
+            # Threshold light channel for black
+            hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
+            mask = cv2.inRange(hsv, (40, 60, 100), (160, 255, 255))
+            
+            imask = mask > 0
+            temp = np.zeros_like(hsv, np.uint8)
+            temp[imask] = 255
+            output = self.image_clean(temp[:,:,0])
+            if verbose == True:
+                cv2.imshow('rgb', img_rgb)
+                if self.iter == 20:
+                    cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/seq/'+str(self.save)+'.png', img_rgb)
+                    self.save += 1
+                    self.iter = 0
+                cv2.imshow('threshold', output)
+                self.iter +=1
+                cv2.waitKey(1)
 
-        # Threshold color channel
-        s_thresh_min = 85
-        s_thresh_max = 255
-        # s_thresh_max = -1
+            return output
 
-        # Note: img is the undistorted, RGB image
-        img_hls = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HLS)
-        h_channel = img_hls[:,:,0]
-        l_channel = img_hls[:,:,1]
-        s_channel = img_hls[:,:,2]
+    # def threshold_hls(self, img_rgb, verbose=False):
+    #     '''
+    #     # Function Description
+    #     Saturation Thresholding and binarization in HLS space
 
-        # Threshold color channel
-        l_binary = np.zeros_like(l_channel, dtype = np.uint8)
-        l_binary[(l_channel >= l_thresh_min) & (l_channel <= l_thresh_max)] = 1
+    #     # Parameter
+    #     img_rgb               = RGB, undistorted image
+    #     verbose               = show both S channel image and undistorted image when verbose == True
 
-        # Threshold color channel
-        s_binary = np.zeros_like(s_channel, dtype = np.uint8)
-        s_binary[(s_channel >= s_thresh_min) & (s_channel <= s_thresh_max)] = 1
+    #     # Return
+    #     combined_binary       = binarized image thresholded in Lightness & Saturation channel of HLS space 
+    #     '''
 
-        # Combined binary image
-        combined_binary = np.zeros_like(l_binary, dtype = np.uint8)
-        combined_binary[(l_binary == 1) | (s_binary == 1)] = 1
+    #     # Threshold light channel for black
+    #     l_thresh_min = 0
+    #     # l_thresh_max = 120
+    #     l_thresh_max = -1
 
-        if verbose == True:
-            cv2.imshow('combined_img', combined_binary*255)
-            cv2.waitKey(1)
+    #     # Threshold color channel
+    #     s_thresh_min = 85
+    #     s_thresh_max = 255
+    #     # s_thresh_max = -1
 
-        return combined_binary
+    #     # Note: img is the undistorted, RGB image
+    #     img_hls = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HLS)
+    #     h_channel = img_hls[:,:,0]
+    #     l_channel = img_hls[:,:,1]
+    #     s_channel = img_hls[:,:,2]
+
+    #     # Threshold color channel
+    #     l_binary = np.zeros_like(l_channel, dtype = np.uint8)
+    #     l_binary[(l_channel >= l_thresh_min) & (l_channel <= l_thresh_max)] = 1
+
+    #     # Threshold color channel
+    #     s_binary = np.zeros_like(s_channel, dtype = np.uint8)
+    #     s_binary[(s_channel >= s_thresh_min) & (s_channel <= s_thresh_max)] = 1
+
+    #     # Combined binary image
+    #     combined_binary = np.zeros_like(l_binary, dtype = np.uint8)
+    #     combined_binary[(l_binary == 1) | (s_binary == 1)] = 1
+
+    #     if verbose == True:
+    #         cv2.imshow('combined_img', combined_binary*255)
+    #         cv2.waitKey(1)
+
+    #     return combined_binary
         
     
     def warp_perspective(self, img_bin, verbose = False):
