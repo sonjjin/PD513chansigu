@@ -24,8 +24,7 @@ class RampTracker:
 
         # subscribe the image
         self.img_front_sub = rospy.Subscriber('/front_cam/image_raw', Image, self.img_front_callback)
-        self.img_left_sub = rospy.Subscriber('/left_cam/image_raw', Image, self.img_left_callback)
-        self.img_right_sub = rospy.Subscriber('/right_cam/image_raw', Image, self.img_right_callback)
+        
         self.cv_bridge = CvBridge() # ros image massage를 사진으로 받아오는 함수
         
         # 초기화
