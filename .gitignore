@@ -1,5 +1,5 @@
 !results/*.png
-!seq/
+!seq/**/*.png
 .ipynb_checkpoints
 temp/
 *.png
