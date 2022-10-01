@@ -2,6 +2,8 @@
 
 !seq/front/*.png
 
+.ipynb_checkpoints
+
 temp/
 
 *.png
