@@ -1,13 +1,7 @@
 !results/*.png
-
-!seq/front/*.png
-
+!seq/
 .ipynb_checkpoints
-
 temp/
-
 *.png
-
 .DS_Store
-
 *.ipynb
