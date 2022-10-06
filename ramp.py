@@ -295,7 +295,7 @@ class Ramptracker:
         
         plt.imshow(img_rgb)        
         # cv2.imwrite('../results/seq/' + str(self.count) + '.png', img_rgb)
-        plt.savefig('../results/seq/' + str(self.count) + '.png')
+        # plt.savefig('../results/seq/' + str(self.count) + '.png')
         
         plt.clf() 
         
