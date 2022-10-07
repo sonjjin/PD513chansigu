@@ -38,7 +38,7 @@ class Joystick:
         
 
     def set_ctrl(self, keyboard_input, verbose = False):
-        motor_duty  = 90.0    # 0~255
+        motor_duty  = 110.0    # 0~255
         servo_angle = 20.0     # 0~20 [deg]
         servo_angle_0 = 0.0
         

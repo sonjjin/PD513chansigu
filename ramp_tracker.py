@@ -81,6 +81,7 @@ class RampTracker:
         self.ros_input_servo = 0.0    # -20 ~ 20 deg
 
         self.count = 0
+        self.iter = 0
         # plt.ion()
         # self.plt_fig, self.plt_ax = plt.subplots(figsize = (10, 8))
 
