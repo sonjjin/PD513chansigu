@@ -85,6 +85,9 @@ class Ramptracker:
         self.check_left = False
         self.check_right = False
 
+        self.left_fit = None
+        self.right_fit = None
+
         self.m_per_pixel = 0.00252
         self.steer = None
 
@@ -334,8 +337,8 @@ class Ramptracker:
     
     def get_steer(self, img):
         img_h = img.shape[0]
-        
         h_target = img_h * 0.9
+        print(img.shape, h_target)
         
         if self.check_left:
             left_fit = self.left_fit
