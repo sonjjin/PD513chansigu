@@ -18,12 +18,26 @@ class Ramptracker:
         self.img_left_sub = rospy.Subscriber('/left_cam/image_raw', Image, self.img_left_callback)
         self.img_right_sub = rospy.Subscriber('/right_cam/image_raw', Image, self.img_right_callback)
         self.img_back_sub = rospy.Subscriber('/rear_cam/image_raw', Image, self.img_back_callback)
+
+        self.pub_ctrl_servo = rospy.Publisher('ctrl_servo', Float32, queue_size=1)
+        
+        self.is_front = False
+        self.is_left = False
+        self.is_right = False
+        self.is_back = False
+        
         self.cur_img_front = None
         self.cur_img_left = None
         self.cur_img_right = None
         self.cur_img_back = None
         
-        
+        ## 테스트용 ##
+        # path = '/home/juntae/catkin_ws/src/caffeine/src/seq/front/'
+        # file = '00.png'
+        # img_front_array = np.fromfile(path+file, np.uint8)
+        # self.cur_img_front = cv2.imdecode(img_front_array, cv2.IMREAD_COLOR)
+        # self.is_front = True
+
         self.forward_src = np.float32([
                     (125, 180),
                     (0, 440),
@@ -67,44 +81,44 @@ class Ramptracker:
                 ])
     
 
-    
-    
-    
     # lane check
         self.check_left = False
         self.check_right = False
+
+        self.left_fit = None
+        self.right_fit = None
+
+        self.m_per_pixel = 0.00252
+        self.steer = None
 
         self.count = 0
     '''
     image callback
     '''
     def img_front_callback(self, data):
-        if not self.is_front:
-            img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
-            self.cur_img_front = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            # print("front",  self.cur_img_front.dtype) 
-            self.is_front = True
+        img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
+        self.cur_img_front = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # print("front",  self.cur_img_front.dtype) 
+        self.is_front = True
+        pass
 
     def img_left_callback(self, data):
-        if not self.is_left:
-            img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
-            self.cur_img_left = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
-            # print("left", self.cur_img_left.dtype) 
-            self.is_left = True
+        img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
+        self.cur_img_left = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
+        # print("left", self.cur_img_left.dtype) 
+        self.is_left = True
     
     def img_right_callback(self, data):
-        if not self.is_right:
-            img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
-            self.cur_img_right = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
-            # print("right", self.cur_img_right.dtype) 
-            self.is_right = True
+        img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
+        self.cur_img_right = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
+        # print("right", self.cur_img_right.dtype) 
+        self.is_right = True
     
     def img_back_callback(self, data):
-        if not self.is_back:
-            img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
-            self.cur_img_back = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
-            # print("rear", self.cur_img_back.dtype) 
-            self.is_back = True
+        img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
+        self.cur_img_back = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
+        # print("rear", self.cur_img_back.dtype) 
+        self.is_back = True
     
     '''
     hsv and image detetion
@@ -146,6 +160,7 @@ class Ramptracker:
     '''
     image wrapping
     '''
+
     def front(self, img):
         IMAGE_H, IMAGE_W, _ = img.shape
         
@@ -194,10 +209,13 @@ class Ramptracker:
     input: binary image
     '''
     def lane_detect(self, img):
-        img_hsv = self.hsv(img)
-        img_rgb = cv2.cvtColor(img_hsv, cv2.COLOR_BGR2RGB)
+        self.check_left = False
+        self.check_right = False
+
+        img_hsv = self.hsv(img, 'yellow')
         img_bin = img_hsv
-        
+        img_rgb = np.dstack((img_bin, img_bin, img_bin))
+
         # HYPERPARAMETERS
         nwindows = 10 # Choose the number of sliding windows
         margin = 50 # Set the width of the windows +/- margin
@@ -240,7 +258,7 @@ class Ramptracker:
             if self.check_left == True:
                 win_xleft_low = leftx_current - margin  # Update this
                 win_xleft_high = leftx_current + margin  # Update this
-                cv2.rectangle(img_rgb,(win_xleft_low, win_y_low),(win_xleft_high, win_y_high),(204,0,255), 2) 
+                # cv2.rectangle(img_rgb,(win_xleft_low, win_y_low),(win_xleft_high, win_y_high),(204,0,255), 2) 
                 good_left_inds = ((nonzerox >= win_xleft_low) & (nonzerox < win_xleft_high) & (nonzeroy >= win_y_low) & (nonzeroy < win_y_high)).nonzero()[0]
                 left_lane_inds.append(good_left_inds)
                 if(len(good_left_inds) > minpix):
@@ -249,7 +267,7 @@ class Ramptracker:
             if self.check_right == True:
                 win_xright_low = rightx_current - margin  # Update this
                 win_xright_high = rightx_current + margin  # Update this
-                cv2.rectangle(img_rgb,(win_xright_low,win_y_low),(win_xright_high,win_y_high),(51,153,255), 2) 
+                # cv2.rectangle(img_rgb,(win_xright_low,win_y_low),(win_xright_high,win_y_high),(51,153,255), 2) 
                 good_right_inds = ((nonzerox >= win_xright_low) & (nonzerox < win_xright_high) & (nonzeroy >= win_y_low) & (nonzeroy < win_y_high)).nonzero()[0]
                 right_lane_inds.append(good_right_inds)
                 if(len(good_right_inds) > minpix):
@@ -261,6 +279,7 @@ class Ramptracker:
             leftx = nonzerox[left_lane_inds]
             lefty = nonzeroy[left_lane_inds]
             left_fit = np.polyfit(lefty, leftx, 2)
+            self.left_fit = left_fit
             
             
         if self.check_right == True:
@@ -268,6 +287,7 @@ class Ramptracker:
             rightx = nonzerox[right_lane_inds]
             righty = nonzeroy[right_lane_inds]
             right_fit = np.polyfit(righty, rightx, 2)
+            self.right_fit = right_fit
 
         # Generate x and y values for plotting
         ploty = np.linspace(0, img_rgb.shape[0]-1, img_rgb.shape[0]) # y value
@@ -287,30 +307,76 @@ class Ramptracker:
         # Colors in the left and right lane regions
         if self.check_left == True:
             img_rgb[lefty, leftx] = [255, 0, 0]
-            plt.plot(left_fitx, ploty, color='green')
-            print(left_fitx.type)
+            left_fit_idx = np.stack((left_fitx, ploty), axis = -1).astype(int)
+            img_rgb = cv2.polylines(img_rgb, [left_fit_idx] , False, (0, 255, 255), 3)
+
+            # plt.plot(left_fitx, ploty, color='green')
             
         if self.check_right == True:   
             img_rgb[righty, rightx] = [0, 0, 255]   
-            plt.plot(right_fitx, ploty, color='yellow')
+            right_fit_idx = np.stack((right_fitx, ploty), axis = -1).astype(int)
+            img_rgb = cv2.polylines(img_rgb, [right_fit_idx] , False, (0, 255, 255), 3)
+
+            # plt.plot(right_fitx, ploty, color='yellow')
         
-        plt.imshow(img_rgb)        
+        img_viz = np.vstack((img, img_rgb))
+        cv2.imshow("lane_detection", img_viz)
+        cv2.waitKey(1)
+        
         # cv2.imwrite('../results/seq/' + str(self.count) + '.png', img_rgb)
         # plt.savefig('../results/seq/' + str(self.count) + '.png')
-        
-        plt.clf() 
+
+        # plt.imshow(img)        
+        # plt.clf() 
         
         self.count += 1   
-        self.check_left = False
-        self.check_right = False
+        # self.check_left = False
+        # self.check_right = False
         # return left_lane_inds, right_lane_inds
         
     
+    def get_steer(self, img):
+        img_h = img.shape[0]
+        h_target = img_h * 0.9
+        print(img.shape, h_target)
+        
+        if self.check_left:
+            left_fit = self.left_fit
+            left_lane = left_fit[0]*h_target**2 + left_fit[1]*h_target + left_fit[2]
+            left_curverad = ((1 + (2*left_fit[0]*h_target + left_fit[1])**2)**1.5) / (2*left_fit[0]) * self.m_per_pixel
+            print('left lane :', left_lane, left_curverad)
+        
+        if self.check_right:
+            right_fit = self.right_fit
+            right_lane = right_fit[0]*h_target**2 + right_fit[1]*h_target + right_fit[2]
+            right_curverad = ((1 + (2*right_fit[0]*h_target + right_fit[1])**2)**1.5) / (2*right_fit[0]) * self.m_per_pixel
+            print('right lane :', right_lane, right_curverad)
+        
+        ## Pseudo Stanley 오른쪽 차선 기준
+        if self.check_right:
+            cte = (460-right_lane)
+            gain_cte = 0.5      # 높을수록 민감
+            gain_curv = -1      # 높을수록 민감
+            
+            steer = gain_cte * cte + gain_curv / right_curverad
+            steer = max(min(steer, 20.0), -20.0)
+
+            self.steer = steer
+            print('steer: {:.3}'.format(steer))
+        
+            return self.steer
+        else:
+            return None
+    
     def process(self):
-        img = self.cur_img_front
-        # print(self.count)
-        img = self.front(img)
-        self.lane_detect(img)
+        if self.is_front:
+            img = self.cur_img_front
+            # print(self.count)
+            img = self.front(img)
+            self.lane_detect(img)
+            self.get_steer(img)
+            if self.steer is not None:
+                self.pub_ctrl_servo.publish(self.steer)
      
         
 if __name__ == '__main__':
@@ -318,7 +384,7 @@ if __name__ == '__main__':
     r = rospy.Rate(10)
     rt = Ramptracker()
 
-    while not rospy.is_shutdown():
+    while not rospy.is_shutdown():        
         rt.process()
         r.sleep()
     

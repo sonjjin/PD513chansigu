@@ -1,5 +1,6 @@
 *.png
 !results/*.png
+!results/seq/*.png
 !results/*/*/*.png
 !seq/*/*.png
 .ipynb_checkpoints

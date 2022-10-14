@@ -17,10 +17,21 @@ class Joystick:
         self.pub_ctrl_servo = rospy.Publisher('ctrl_servo', Float32, queue_size=1)
 
         rospy.init_node('joystick', anonymous=False)
+
+        self.is_init = False
     
     
     def execute(self):
         while not rospy.is_shutdown():
+            # if self.is_init == False:
+            #     rospy.sleep(10.)
+            #     self.is_keyboard_input = True
+            #     self.keyboard_input = 'w'
+            #     self.set_ctrl(self.keyboard_input)
+            #     self.is_init = True
+            #     self.publish_ctrl()
+            #     print("Started")
+            
             self.get_keyboard_input()
             if self.is_keyboard_input:
                 self.publish_ctrl()
@@ -38,7 +49,7 @@ class Joystick:
         
 
     def set_ctrl(self, keyboard_input, verbose = False):
-        motor_duty  = 90.0    # 0~255
+        motor_duty  = 110.0    # 0~255
         servo_angle = 20.0     # 0~20 [deg]
         servo_angle_0 = 0.0
         
