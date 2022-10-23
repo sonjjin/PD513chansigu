@@ -1,0 +1,56 @@
+<launch>
+  <node name="front_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >
+    <param name="video_device" value="/dev/video0" />
+    <param name="image_width" value="640" />
+    <param name="image_height" value="480" />
+    <param name="framerate" value="20" />
+    <param name="pixel_format" value="mjpeg" />
+    <param name="camera_frame_id" value="front_cam" />
+    <param name="io_method" value="mmap"/>
+    <remap from="/image_raw" to="/front_cam/image_raw" />
+  </node>
+  
+  <node name="rear_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >
+    <param name="video_device" value="/dev/video2" />
+    <param name="image_width" value="640" />
+    <param name="image_height" value="480" />
+    <param name="framerate" value="20" />
+    <param name="pixel_format" value="mjpeg" />
+    <param name="camera_frame_id" value="rear_cam" />
+    <param name="io_method" value="mmap"/>
+    <remap from="/image_raw" to="/rear_cam/image_raw" />
+  </node>
+
+  <node name="left_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >
+    <param name="video_device" value="/dev/video4" />
+    <param name="image_width" value="640" />
+    <param name="image_height" value="480" />
+    <param name="framerate" value="20" />
+    <param name="pixel_format" value="mjpeg" />
+    <param name="camera_frame_id" value="left_cam" />
+    <param name="io_method" value="mmap"/>
+    <remap from="/image_raw" to="/left_cam/image_raw" />
+  </node>
+
+  <node name="right_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >
+    <param name="video_device" value="/dev/video6" />
+    <param name="image_width" value="640" />
+    <param name="image_height" value="480" />
+    <param name="framerate" value="20" />
+    <param name="pixel_format" value="mjpeg" />
+    <param name="camera_frame_id" value="right_cam" />
+    <param name="io_method" value="mmap"/>
+    <remap from="/image_raw" to="/right_cam/image_raw" />
+  </node>
+<!-- 
+  <node name="zed_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >
+    <param name="video_device" value="/dev/video10" />
+    <param name="image_width" value="640" />
+    <param name="image_height" value="480" />
+    <param name="pixel_format" value="mjpeg" />
+    <param name="camera_frame_id" value="right_cam" />
+    <param name="io_method" value="mmap"/>
+    <remap from="/image_raw" to="/zed_cam/image_raw" />
+  </node> -->
+  
+</launch>
