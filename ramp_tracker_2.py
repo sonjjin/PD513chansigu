@@ -338,31 +338,37 @@ class Ramptracker:
     def get_steer(self, img):
         img_h = img.shape[0]
         h_target = img_h * 0.9
-        print(img.shape, h_target)
+        # print(img.shape, h_target)
         
         if self.check_left:
             left_fit = self.left_fit
             left_lane = left_fit[0]*h_target**2 + left_fit[1]*h_target + left_fit[2]
             left_curverad = ((1 + (2*left_fit[0]*h_target + left_fit[1])**2)**1.5) / (2*left_fit[0]) * self.m_per_pixel
-            print('left lane :', left_lane, left_curverad)
+            # print('left lane :', left_lane, left_curverad)
         
         if self.check_right:
             right_fit = self.right_fit
             right_lane = right_fit[0]*h_target**2 + right_fit[1]*h_target + right_fit[2]
             right_curverad = ((1 + (2*right_fit[0]*h_target + right_fit[1])**2)**1.5) / (2*right_fit[0]) * self.m_per_pixel
-            print('right lane :', right_lane, right_curverad)
+            # print('right lane :', right_lane, right_curverad)
         
         ## Pseudo Stanley 오른쪽 차선 기준
         if self.check_right:
-            cte = (460-right_lane)
-            gain_cte = 0.5      # 높을수록 민감
+            rl_ref = 450
+            cte = (rl_ref-right_lane)  # 높을수록 붙어서감
+            gain_cte = 0.3      # 높을수록 민감
             gain_curv = -1      # 높을수록 민감
             
             steer = gain_cte * cte + gain_curv / right_curverad
             steer = max(min(steer, 20.0), -20.0)
 
             self.steer = steer
+            print("-----------------------")
+            print(' cte  +  curv')
+            print('{:.3} + {:.3}'.format(gain_cte * cte, gain_curv / right_curverad))
             print('steer: {:.3}'.format(steer))
+            print("-----------------------")
+            print("\n")
         
             return self.steer
         else:
