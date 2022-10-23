@@ -15,15 +15,18 @@ class SurroundView:
         # subscribe the image
         self.cv_bridge = CvBridge() # ros image massage를 사진으로 받아오는 함수
         self.img_front_sub = rospy.Subscriber('/front_cam/image_raw', Image, self.img_front_callback)
+        self.img_back_sub = rospy.Subscriber('/rear_cam/image_raw', Image, self.img_back_callback)
         self.img_left_sub = rospy.Subscriber('/left_cam/image_raw', Image, self.img_left_callback)
         self.img_right_sub = rospy.Subscriber('/right_cam/image_raw', Image, self.img_right_callback)
-        self.img_back_sub = rospy.Subscriber('/rear_cam/image_raw', Image, self.img_back_callback)
         # self.cur_img_front = cv2.imread('front.jpg', cv2.IMREAD_COLOR)
         # self.cur_img_left = cv2.imread('left.jpg', cv2.IMREAD_COLOR)
         # self.cur_img_right = cv2.imread('right.jpg', cv2.IMREAD_COLOR)
         # self.cur_img_back = cv2.imread('rear.jpg', cv2.IMREAD_COLOR)
 
         # 초기화
+
+        self.iter = 0
+        self.save = 0
         
         self.cur_img_front = None
         self.cur_img_left = None
@@ -77,10 +80,17 @@ class SurroundView:
             (620, 410)
         ])
 
+        # self.forward_dst = np.float32([
+        #     (70, 90),
+        #     (170, 440),
+        #     (530, 90),
+        #     (470, 445)
+        # ])
+
         self.forward_dst = np.float32([
-            (70, 90),
+            (150, 90),
             (170, 440),
-            (530, 90),
+            (560, 90),
             (470, 445)
         ])
 
@@ -624,8 +634,15 @@ class SurroundView:
                     cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/check.png', old_frame)
                     cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/lane.png', frame_with_lane)
                     cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/final.png', ttt)
+                    if self.iter == 5:
+                        cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/seq/front/' + str(self.save) + '.png', self.cur_img_front)
+                        cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/seq/right/' + str(self.save) + '.png', self.cur_img_right)
+                        cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/seq/left/' + str(self.save) + '.png', self.cur_img_left)
+                        self.save += 1
+                        self.iter = 0
+                    self.iter += 1
 
-                    
+
                     cv2.waitKey(1)
                     print('nice\n')
                 
