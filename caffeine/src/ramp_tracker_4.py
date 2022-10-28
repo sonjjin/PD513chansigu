@@ -6,10 +6,12 @@ import cv2
 from cv_bridge import CvBridge
 import matplotlib.pyplot as plt
 import os
+import csv
 
 import rospy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32
+
 
 class Ramptracker:
     def __init__(self):
@@ -358,7 +360,7 @@ class Ramptracker:
         img_f_h = img_f.shape[0]/2
         img_l_h = img_l.shape[0]/2
         img_r_h = img_r.shape[0]/2
-        f_h_target = img_f_h * 0.9
+        f_h_target = img_f_h * 0.7
         l_h_target = img_l_h * 0.5
         r_h_target = img_r_h * 0.5
 
@@ -400,8 +402,10 @@ class Ramptracker:
             gain_cte = 0.3      # 높을수록 민감
             gain_curv = -1      # 높을수록 민감
             gain_cte_l = 0.1
-            gain_cte_r = 0.15
+            gain_cte_r = 0.1
             steer = 0.0
+            cte_l = 0
+            cte_r = 0
 
             if check_right_l:
                 cte_l = (ls_ref - left_sidelane)
@@ -461,6 +465,12 @@ class Ramptracker:
             print('steer: {:.3}'.format(steer))
             print("-----------------------")
             print("\n")
+            ll = [str(self.steer), str(cte), str(cte_l), str(cte_r)]
+            with open('/home/juntae/catkin_ws/src/caffeine/src/steer.csv','a') as f:
+                writer = csv.writer(f)
+                writer.writerow(ll)
+
+
             self.is_front = False
             self.is_left = False
             self.is_right = False

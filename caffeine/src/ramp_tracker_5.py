@@ -358,7 +358,7 @@ class Ramptracker:
         img_f_h = img_f.shape[0]/2
         img_l_h = img_l.shape[0]/2
         img_r_h = img_r.shape[0]/2
-        f_h_target = img_f_h * 0.5
+        f_h_target = img_f_h * 0.9
         l_h_target = img_l_h * 0.5
         r_h_target = img_r_h * 0.5
 
@@ -400,7 +400,7 @@ class Ramptracker:
             gain_cte = 0.3      # 높을수록 민감
             gain_curv = -1      # 높을수록 민감
             gain_cte_l = 0.1
-            gain_cte_r = 0.15
+            gain_cte_r = 0.1
             steer = 0.0
 
             if check_right_l:
@@ -485,7 +485,7 @@ class Ramptracker:
                 check_stop_lane = np.sum(img_r_half_bin)
                 # cv2.imshow("lane_detection222", img_r_half_bin)
                 if check_stop_lane > 5000000:
-                    self.mode = 1
+                    self.mode = 0
 
                 check_right_f, check_left_f, right_fit_f, left_fit_f, img_f_lane = self.lane_detect(img_f ,2)
                 check_right_l, check_left_l, right_fit_l, left_fit_l, img_l_lane = self.lane_detect(img_l ,1)
