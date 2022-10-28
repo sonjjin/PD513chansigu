@@ -354,12 +354,16 @@ class Ramptracker:
         return check_right, check_left, right_fit, left_fit, img_viz
         
     
-    def get_steer(self, img_f, check_right_f, check_left_f, right_fit_f, left_fit_f, img_l, check_right_l, right_fit_l):
+    def get_steer(self, img_f, check_right_f, check_left_f, right_fit_f, left_fit_f, img_l, check_right_l, right_fit_l, img_r, check_left_r, left_fit_r):
         img_f_h = img_f.shape[0]/2
         img_l_h = img_l.shape[0]/2
+        img_r_h = img_r.shape[0]/2
         f_h_target = img_f_h * 0.9
         l_h_target = img_l_h * 0.5
+        r_h_target = img_r_h * 0.5
+
         left_sidelane = -100
+        right_sidelane = -100
         # print(img.shape, h_target)
         
         if check_left_f:
@@ -380,15 +384,23 @@ class Ramptracker:
             left_sidelane = right_fit_l[0]*l_h_target + right_fit_l[1]
             # right_curverad = ((1 + (2*right_fit_f[0]*h_target + right_fit_f[1])**2)**1.5) / (2*right_fit_f[0]) * self.m_per_pixel
             # print('right lane :', right_lane, right_curverad)
+        if check_left_r:
+            # right_fit = right_fit
+            # left_sidelane = right_fit_l[0]*l_h_target**2 + right_fit_l[1]*l_h_target + right_fit_l[2]
+            right_sidelane = left_fit_r[0]*r_h_target + left_fit_r[1]
+            # right_curverad = ((1 + (2*right_fit_f[0]*h_target + right_fit_f[1])**2)**1.5) / (2*right_fit_f[0]) * self.m_per_pixel
+            # print('right lane :', right_lane, right_curverad)
         
         ## Pseudo Stanley 오른쪽 차선 기준
         if check_right_f:
             frl_ref = 470
             ls_ref = 390
+            rs_ref = 90
             cte = (frl_ref-right_lane)  # 높을수록 붙어서감
             gain_cte = 0.3      # 높을수록 민감
             gain_curv = -1      # 높을수록 민감
             gain_cte_l = 0.1
+            gain_cte_r = 0.15
             steer = 0.0
 
             if check_right_l:
@@ -396,17 +408,31 @@ class Ramptracker:
                 if cte_l < 60:
                     steer = gain_cte * cte + gain_curv / right_curverad - cte_l*gain_cte_l
                     steer = max(min(steer, 20.0), -20.0)
-                    self.steer = steer
+                    # self.steer = steer
 
                 else:
                     steer = gain_cte * cte + gain_curv / right_curverad
                     steer = max(min(steer, 20.0), -20.0)
                     self.steer = steer
 
+                if check_left_r:
+                    cte_r = (rs_ref - right_sidelane)
+                    if cte_r < 60:
+                        steer = steer + cte_r*gain_cte_r
+                        steer = max(min(steer, 20.0), -20.0)
+                        self.steer = steer
+
             else:
-                steer = gain_cte * cte + gain_curv / right_curverad
-                steer = max(min(steer, 20.0), -20.0)
-                self.steer = steer
+                if check_left_r:
+                    steer = gain_cte * cte + gain_curv / right_curverad
+                    steer = max(min(steer, 20.0), -20.0)
+                    self.steer = steer
+
+                    cte_r = (rs_ref - right_sidelane)
+                    if cte_r < 60:
+                        steer = steer + cte_r*gain_cte_r
+                        steer = max(min(steer, 20.0), -20.0)
+                        self.steer = steer
 
 
             print("-----------------------")
@@ -420,6 +446,14 @@ class Ramptracker:
                 print('None')
                 print(left_sidelane)
 
+            print('cte_r')
+            if check_left_r:
+                print('{:.3}'.format(cte_r))
+                print(right_sidelane)
+            else:
+                print('None')
+                print(right_sidelane)
+
             print('steer: {:.3}'.format(steer))
             print("-----------------------")
             print("\n")
@@ -432,27 +466,34 @@ class Ramptracker:
             return None
     
     def process(self):
-        if self.is_front and self.is_left:
+        if self.is_front and self.is_left and self.is_right:
             img_f = self.cur_img_front
             img_l = self.cur_img_left
+            img_r = self.cur_img_right
             img_b = self.cur_img_back
             img_l = self.side_left(img_l)
+            img_r = self.side_right(img_r)
             img_f = self.front(img_f)
 
             if self.mode == 0:
                 img_r_half = img_b[:-100, :, :]
                 img_r_half_bin = self.hsv(img_r_half)
                 check_stop_lane = np.sum(img_r_half_bin)
-                cv2.imshow("lane_detection222", img_r_half_bin)
+                # cv2.imshow("lane_detection222", img_r_half_bin)
                 if check_stop_lane > 5000000:
                     self.mode = 1
-                print(check_stop_lane)
+
 
                 check_right_f, check_left_f, right_fit_f, left_fit_f, img_f_lane = self.lane_detect(img_f ,2)
                 check_right_l, check_left_l, right_fit_l, left_fit_l, img_l_lane = self.lane_detect(img_l ,1)
-                self.get_steer(img_f_lane, check_right_f, check_left_f, right_fit_f, left_fit_f, img_l_lane, check_right_l, right_fit_l)
+                check_right_r, check_left_r, right_fit_r, left_fit_r, img_r_lane = self.lane_detect(img_r ,1)
+                self.get_steer(
+                    img_f_lane, check_right_f, check_left_f, right_fit_f, left_fit_f,
+                    img_l_lane, check_right_l, right_fit_l,
+                    img_r_lane, check_left_r, left_fit_r)
                 cv2.imshow("lane_detection", img_f_lane)
                 cv2.imshow("lane_detection_left", cv2.resize(img_l_lane, dsize=(300,500)))
+                cv2.imshow("lane_detection_right", cv2.resize(img_r_lane, dsize=(300,500)))
                 cv2.waitKey(1)
             if self.mode == 1:
                 self.steer = 0

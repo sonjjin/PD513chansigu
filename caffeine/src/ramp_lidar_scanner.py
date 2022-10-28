@@ -33,8 +33,18 @@ class ramp_lidar_scanner:
     def process(self):
         if self.is_laserscan:
             points_xy = self.convert_polar2xy(self.laserscan)
-            plt.scatter(points_xy[:, 0], points_xy[:, 1])
-            plt.show()
+            points_xy = points_xy*100
+            points_xy = np.array(points_xy, dtype=np.int32)
+            # points_xy.astype(np.int64)
+            print(np.max(points_xy[:,0]), np.max(points_xy[:,1]))
+            print(np.min(points_xy[:,0]), np.min(points_xy[:,1]))
+            points_xy = points_xy + 700
+
+
+            img_lidar = np.zeros((np.max(points_xy[:,0]+100), np.max(points_xy[:,1]+100)), dtype = np.uint8)
+            img_lidar[points_xy[:,0]+50, points_xy[:,1]+50] = 255
+            cv2.imshow('lidar image', cv2.resize(cv2.rotate(img_lidar, cv2.ROTATE_180), dsize = (300,500)))
+            cv2.waitKey(1)
 
 
 
