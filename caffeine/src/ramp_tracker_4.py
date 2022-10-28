@@ -433,6 +433,10 @@ class Ramptracker:
                         steer = steer + cte_r*gain_cte_r
                         steer = max(min(steer, 20.0), -20.0)
                         self.steer = steer
+                else:
+                    steer = gain_cte * cte + gain_curv / right_curverad
+                    steer = max(min(steer, 20.0), -20.0)
+                    self.steer = steer
 
 
             print("-----------------------")
@@ -460,7 +464,7 @@ class Ramptracker:
             self.is_front = False
             self.is_left = False
             self.is_right = False
-
+    
             return self.steer
         else:
             return None
