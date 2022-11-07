@@ -13,8 +13,8 @@ class Joystick:
         self.is_keyboard_input = False
         self.keyboard_input = None
 
-        self.pub_ctrl_motor = rospy.Publisher('ctrl_motor', Float32, queue_size=1)
-        self.pub_ctrl_servo = rospy.Publisher('ctrl_servo', Float32, queue_size=1)
+        self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
+        self.pub_ctrl_servo = rospy.Publisher('/arduino_ctrl/ctrl_servo', Float32, queue_size=1)
 
         rospy.init_node('joystick', anonymous=False)
 

@@ -1,0 +1,21 @@
+<launch> 
+    <group ns="arduino_ctrl">
+        <arg name="port" default="/dev/ttyACM1" />
+        <arg name="baud" default="57600" />
+        
+        <node name="arduino" pkg="rosserial_python" type="serial_node.py" output="screen">
+            <param name="port" value="$(arg port)" />
+            <param name="baud" value="$(arg baud)" />
+        </node>
+    </group>
+    <group ns="arduino_imu">
+        <arg name="port" default="/dev/ttyACM0" />
+        <arg name="baud" default="9600" />
+        
+        <node name="arduino_imu" pkg="rosserial_python" type="serial_node.py" output="screen">
+            <param name="port" value="$(arg port)" />
+            <param name="baud" value="$(arg baud)" />
+        </node>
+    </group>
+
+</launch>
