@@ -14,7 +14,7 @@ from std_msgs.msg import Float32
 class path:
     def __init__(self):
         self.cv_bridge = CvBridge()
-        self.img = rospy.Subscriber('/camera/image_raw', Image, self.img_callback)
+        self.img = rospy.Subscriber('/img_w_path', Image, self.img_callback)
         self.cur_img = None
         self.is_img = False
         
