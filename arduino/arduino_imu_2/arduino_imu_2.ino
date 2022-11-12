@@ -3,16 +3,20 @@
 #include <std_msgs/Float32.h>
 #include <Wire.h>
 #include <MPU6050_tockn.h>
-int16_t AcX,AcY,GyZ;
+int16_t AcX,AcY,GyZ, GyX, GyY;
 //Set up the ros node and publisher
 //std_msgs::String imu_msg;
 std_msgs::Float32 imu_accX;
 std_msgs::Float32 imu_accY;
-std_msgs::Float32 imu_agl;
+std_msgs::Float32 imu_aglZ;
+std_msgs::Float32 imu_aglX;
+std_msgs::Float32 imu_aglY;
 //ros::Publisher imu("imu", &imu_msg);
 ros::Publisher accX("accX", &imu_accX);
 ros::Publisher accY("accY", &imu_accY);
-ros::Publisher agl("agl", &imu_agl);
+ros::Publisher aglX("aglX", &imu_aglX);
+ros::Publisher aglY("aglY", &imu_aglY);
+ros::Publisher aglZ("aglZ", &imu_aglZ);
 
 ros::NodeHandle nh;
 MPU6050 mpu6050(Wire, 0.08, 0.92);
@@ -25,11 +29,13 @@ void setup()
 //  nh.advertise(imu);
   nh.advertise(accX);
   nh.advertise(accY);
-  nh.advertise(agl);
+  nh.advertise(aglX);
+  nh.advertise(aglY);
+  nh.advertise(aglZ);
   Wire.begin();
   mpu6050.begin();
   mpu6050.calcGyroOffsets(true);
-  Serial.begin(9600);
+  Serial.begin(115200);
 }
 
 void loop()
@@ -41,8 +47,8 @@ void loop()
       AcX = round(mpu6050.getAccX()*100);
       AcY = round(mpu6050.getAccY()*100);
       //AcZ = round(mpu6050.getAccZ()*100);
-      //GyX = round(mpu6050.getAngleX()*100);
-      //GyY = round(mpu6050.getAngleY()*100);
+      GyX = round(mpu6050.getAngleX()*100);
+      GyY = round(mpu6050.getAngleY()*100);
       GyZ = round(mpu6050.getAngleZ()*100);
       //Serial.println(AcX);
       //Serial.println(AcY);
@@ -63,11 +69,15 @@ void loop()
       //Serial.println(String(AcX));
       imu_accX.data = AcX;
       imu_accY.data = AcY;
-      imu_agl.data = GyZ;
+      imu_aglX.data = GyX;
+      imu_aglY.data = GyY;
+      imu_aglZ.data = GyZ;
       accX.publish(&imu_accX);
       accY.publish(&imu_accY);
-      agl.publish(&imu_agl);
-      publisher_timer = millis() + 100; //publish ten times a second
+      aglX.publish(&imu_aglX);
+      aglY.publish(&imu_aglY);
+      aglZ.publish(&imu_aglZ);
+      publisher_timer = millis() + 0.1; //publish ten times a second
       nh.spinOnce();
  
   }

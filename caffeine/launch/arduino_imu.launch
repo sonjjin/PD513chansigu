@@ -10,7 +10,7 @@
     </group>
     <group ns="arduino_imu">
         <arg name="port" default="/dev/ttyACM0" />
-        <arg name="baud" default="9600" />
+        <arg name="baud" default="115200" />
         
         <node name="arduino_imu" pkg="rosserial_python" type="serial_node.py" output="screen">
             <param name="port" value="$(arg port)" />

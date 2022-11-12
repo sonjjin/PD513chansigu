@@ -21,8 +21,8 @@ class Ramptracker:
         self.img_right_sub = rospy.Subscriber('/right_cam/image_raw', Image, self.img_right_callback)
         self.img_back_sub = rospy.Subscriber('/rear_cam/image_raw', Image, self.img_back_callback)
 
-        self.pub_ctrl_servo = rospy.Publisher('ctrl_servo', Float32, queue_size=1)
-        self.pub_ctrl_motor = rospy.Publisher('ctrl_motor', Float32, queue_size=1)
+        self.pub_ctrl_servo = rospy.Publisher('/arduino_ctrl/ctrl_servo', Float32, queue_size=1)
+        self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
 
         self.is_front = False
         self.is_left = False
@@ -466,9 +466,9 @@ class Ramptracker:
             print("-----------------------")
             print("\n")
             ll = [str(self.steer), str(cte), str(cte_l), str(cte_r)]
-            with open('/home/juntae/catkin_ws/src/caffeine/src/steer.csv','a') as f:
-                writer = csv.writer(f)
-                writer.writerow(ll)
+            # with open('/home/juntae/catkin_ws/src/caffeine/src/steer.csv','a') as f:
+            #     writer = csv.writer(f)
+            #     writer.writerow(ll)
 
 
             self.is_front = False
