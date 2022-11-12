@@ -44,7 +44,7 @@ if __name__ == "__main__":
             print('Could not read frame')
             break
 
-        img_msg = ip_camera.bridge.cv2_to_imgmsg(frame, "rgb8")
+        img_msg = ip_camera.bridge.cv2_to_imgmsg(frame, "bgr8")
         img_msg.header.stamp = rospy.get_rostime()
         ip_camera.image_pub.publish(img_msg)
 
