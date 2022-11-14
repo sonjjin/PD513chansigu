@@ -5,6 +5,8 @@ import numpy as np
 import cv2
 import math as m
 from cv_bridge import CvBridge
+from skimage.measure import label, regionprops
+
 import matplotlib.pyplot as plt
 import os
 import csv
@@ -51,11 +53,21 @@ class parking:
         # imgs
         self.img_parking_path = None
         self.is_parking_path = False
+        
         self.img_parkinglot = None
         self.is_parkinglot = False
 
+        self.img_map = None
+        self.map_W = 465
+        self.map_H = 443
+        self.m_per_pixel = 0.00252
+        
+        self.steer = None
 
-    # callback functions
+
+    """
+    callback functions
+    """
     def coord_x_callback(self, data):
         if not self.is_coord_x:
             self.coord_x = data
@@ -99,7 +111,10 @@ class parking:
         if not self.is_agl:
             self.agl = data
             self.is_agl = True
-            
+    
+    """
+    hsv
+    """
     def hsv(self, img, color='yellow'):
         hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
 
@@ -111,7 +126,7 @@ class parking:
             output = cv2.cvtColor(output, cv2.COLOR_BGR2GRAY)
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
             output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
-            output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
+            # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
             return output
         
         elif color == 'red':
@@ -135,96 +150,149 @@ class parking:
         # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
         return output
 
-    def find_vector(self, img_parkinglot):
+    """
+    calibarion mapping
+    """
+    def calibration_map(self):
+        img_parkinglot = self.img_parkinglot
+        img_parkinglot_hsv = self.hsv(img_parkinglot, 'green')
+        label_parkinglot = label(img_parkinglot_hsv)
+        regions = regionprops(label_parkinglot)
+        center_point = []
+
+        for props in regions:
+            y0, x0 = props.centroid
+            y0, x0 = round(y0), round(x0)
+            center_point.append([x0, y0])
+        center_point.sort()
+        print(center_point) # ll, lu, ru, rl
+        # y = cv2.line(y, (center_point[0][0], center_point[0][1]), (center_point[0][0], center_point[0][1]),(0,0,255),5)
+        comp = 9
+        comp2 = 6
+        x_ll = 0 + comp2
+        y_ll = 0 + comp2
+        x_ru = 465 - comp
+        y_ru = 186 - comp
+        src = np.array(center_point, dtype=np.float32)
+        dst = np.float32([(x_ll, y_ll),
+            (x_ll, y_ru),
+            (x_ru, y_ru),
+            (x_ru, y_ll)])
+        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+        # Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+
+
+        warped_img = cv2.warpPerspective(img_parkinglot, M, (self.map_W, self.map_H))
+        warped_img = cv2.flip(warped_img, 0)
+        self.img_map = warped_img
+        # return warped_img
+
+    """
+    find the head of vehicle
+    """
+    def find_property(self):
+        img_parkinglot = self.calibration_map()
+        
         img_red = self.hsv(img_parkinglot,'red')
         img_blue = self.hsv(img_parkinglot, 'blue')
-        # cv2.imshow('x',img_blue)
-        # cv2.imshow('y',img_red)
-        # cv2.waitKey(1)
-        contours_red = cv2.findContours(img_red, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        contours_blue = cv2.findContours(img_blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        # print(contours_red)
-        img_red = cv2.cvtColor(img_red, cv2.COLOR_GRAY2BGR)
-        img_blue = cv2.cvtColor(img_blue, cv2.COLOR_GRAY2BGR)
-        cX_red = 0
-        cY_red = 0
-        cX_blue = 0
-        cY_blue = 0
-        for cont in contours_red:
-            # print(cont)
-            cont = np.asarray(cont)
-            # print(type(cont))
-            # cont = np.array(cont)
-            M = cv2.moments(cont)
-            # print(M)
-            cX_red = int(M['m10'] / M['m00'])
-            cY_red = int(M['m01'] / M['m00'])
-            # print(cX,cY)
-            img_red = cv2.circle(img_red, (cX_red, cY_red), 3, (0, 0, 255), -1)
-            # img_red = cv2.drawContours(img_red, [cont], 0, (255, 0, 0), 2)
-            # approx = cv2.approxPolyDP(cont, cv2.arcLength(cont, True)*0.02, True)
-            # vtc = len(approx)
-            break
-            # print(vtc)
-        for cont in contours_blue:
-            M = cv2.moments(cont)
-            cX_blue = int(M['m10'] / M['m00'])
-            cY_blue = int(M['m01'] / M['m00'])
-            # print(cX,cY)
-            img_blue = cv2.circle(img_blue, (cX_blue, cY_blue), 3, (0, 0, 255), -1)
-            # img_blue = cv2.drawContours(img_blue, [cont], 0, (255, 0, 0), 2)
-            # approx = cv2.approxPolyDP(cont, cv2.arcLength(cont, True)*0.02, True)
-            # vtc = len(approx)
-            # print(vtc)
-            break
-        mid_X = round((cX_red + cX_blue) / 2)
-        mid_Y = round((cY_red + cY_blue) / 2)
-        return mid_X, mid_Y
+        
+        label_img_red = label(img_red)
+        label_img_blue = label(img_blue)
+        
+        regions_red = regionprops(label_img_red)
+        regions_blue = regionprops(label_img_blue)
+        
+        vector = []
+        output = {}
+        if len(regions_red) == 1:
+            y0, x0 = regions_red[0].centroid
+            y0, x0 = round(y0), round(x0)
+            vector.append([x0, y0])
+            # img = cv2.line(img, (x0, y0), (x0, y0),(0,0,255),5)
+        
+        if len(regions_blue) == 1:
+            y0, x0 = regions_blue[0].centroid
+            y0, x0 = round(y0), round(x0)
+            vector.append([x0, y0])
+            # img = cv2.line(img, (x0, y0), (x0, y0),(255,0,0),5) 
+    
+        cX = round((vector[0][0] + vector[1][0])/2)
+        cY = round((vector[0][1] + vector[1][1])/2)
+        
+        X1_t = vector[0][0]
+        X2_t = vector[1][0]
+        Y1_t = 443 - vector[0][1]
+        Y2_t = 443 - vector[1][1]
+        X_t = X2_t - X1_t
+        Y_t = Y2_t - Y1_t
+        angle = m.atan2(Y_t, X_t)
+        angle_deg = angle * 180 / m.pi
+        
+        output["vehicle_center"] = [cX, cY]
+        output["angle"] = angle_deg
+        
+        img = cv2.line(img_parkinglot, (vector[0][0], vector[0][1]), (vector[1][0], vector[1][1]),(0,255,0), 4)
+        cv2.imshow(img)
+        cv2.waitKey(1)
+        return output
+    
+    def get_roi(self, target):
+        cX = target["vehicle_center"][0]
+        cY = target["vehicle_center"][1]
+        agl = target["angle"]
+        img_parking_path = self.img_parking_path
+        img_parking_path = self.hsv(img_parking_path, 'purple')
+
+        M = cv2.getRotationMatrix2D((cX, cY), 180-agl, 1.0)
+        rotate_img = cv2.warpAffine(img_parking_path, M, (self.map_W, self.map_H))
+        roi_region = 100
+        roi = rotate_img[int(cY-roi_region/2):int(cY+roi_region/2), int(cX-roi_region):int(cX)]
+        roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        return roi
+    
+    
+    def get_steer(self):
+        self.calibration_map()
+        target = self.find_property()
+        roi = self.get_roi(target)
+        
+        gain_cte = 0.3
+        gain_curv = -1
+        look_a_head = 70
+        
+        path_idx = np.nonzero(roi)
+        path_fit = np.polyfit(path_idx[0], path_idx[1], 2)
+        # print(path_fit)
+        # ploty = np.linspace(0, roi.shape[1]-1, roi.shape[1]) # y value
+        # path_fitx = path_fit[0]*ploty**2+path_fit[1]*ploty+path_fit[2]
+        # print(path_fitx)
+        # path_fit_idx = np.stack((path_fitx, ploty), axis = -1).astype(int)
+        look_a_head = 70
+        front_lane = path_fit[0]*look_a_head**2 + path_fit[1]*look_a_head + path_fit[2]
+        front_curverad = ((1 + (2*path_fit[0]*look_a_head + path_fit[1])**2)**1.5) / (2*path_fit[0]) * self.m_per_pixel
+        cte = roi.shape[0]/2 - front_lane
+        steer = gain_cte * cte + gain_curv / front_curverad
+        self.steer = steer
+        
+        
+        
         
 
-    def main(self):
+    def parking(self):
         # if self.is_coord_x == True and self.is_coord_y == True and self.is_coord_ang == True:
         #     for i  in range(self.coord_x.shape[0] - 1):
         #         dx = self.coord_x[i+1] - self.coord_x[i]
         #         dy = self.coord_y[i+1] - self.coord_y[i]
         #         # ax =
-        dt = 0.1
-        pos_x = 300
-        pos_y = 360 
         # if self.is_accel_x and self.is_accel_y and self.is_agl and self.is_img:
         if self.is_parking_path:
-            # accX = self.accel_x
-            # accY = self.accel_y
-            img_parkinglot = self.img_parkinglot
-            img_parking_path = self.img_parking_path
-            # cv2.imshow('x',img_parkinglot)
-            # cX_red, cY_red, cX_blue, cY_blue = self.find_vector(img_parking_path)
-            mid_X, mid_Y = self.find_vector(img_parking_path)
-            
-            
-            # img = cv2.line(img_parkinglot, (cX_red, cY_red), (cX_blue, cY_blue),(0,255,0), 4)
-            cv2.imshow('parking lot', img)
-            
-            # pos_x = pos_x + round(accX*dt*dt)
-            # pos_y = pos_y + round(accY*dt*dt)
-            # img = self.cur_img
-            # img = np.zeros_like((500,500))
-            # img = cv2.line(img, (pos_y, pos_x), (pos_y, pos_x), (0,0,255), 3)
-            # acc = [accX, accY]
-            # with open('./accel.csv','a') as f:
-            #     writer = csv.writer(f)
-            #     writer.writerow(acc)
-            # print(img.shape)
-            # print(type(img))
-            # cv2.imshow('parking_lot', img_parkinglot)
-            cv2.waitKey(1)
-            self.is_img = False
-            self.is_accle_x = False
-            self.is_accle_y = False
-            self.is_agl = False
+           self.get_steer()
             
         else:
             print('wait for all receiving')
+            
+        if self.steer is not None:
+            self.pub_ctrl_servo.publish(self.steer)
      
         
 if __name__ == '__main__':
@@ -233,7 +301,7 @@ if __name__ == '__main__':
     pc = parking()
 
     while not rospy.is_shutdown():        
-        pc.main()
+        pc.parking()
         r.sleep()
 
     rospy.spin()
