@@ -115,7 +115,7 @@ class SurroundView:
         
         # 자동차 이미지 불러오는 것 인듯
         #self.car = cv2.imread('./car.jpg')
-        self.car = cv2.imread('/home/juntae/catkin_ws/src/caffeine/src/car.png', cv2.IMREAD_COLOR)
+        self.car = cv2.imread('./car.png', cv2.IMREAD_COLOR)
         self.car = cv2.rotate(self.car, cv2.ROTATE_180)
         # car_final = cv2.resize(self.car, (910, 592), interpolation=cv2.INTER_LINEAR)
  
