@@ -29,8 +29,8 @@ class parking:
         self.sub_accY = rospy.Subscriber('/arduino_imu/accY', Float32, self.accel_y_callback) # cm/s
         self.sub_aglZ = rospy.Subscriber('/arduino_imu/aglZ', Float32, self.agl_callback) # degree sum
         
-        self.pub_ctrl_motor = rospy.Publisher('ctrl_motor', Float32, queue_size=1)
-        self.pub_ctrl_servo = rospy.Publisher('ctrl_servo', Float32, queue_size=1)
+        self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
+        self.pub_ctrl_servo = rospy.Publisher('/arduino_ctrl/ctrl_servo', Float32, queue_size=1)
         
         # Path
         self.coord_x = None
@@ -63,6 +63,13 @@ class parking:
         self.m_per_pixel = 0.00252
         
         self.steer = None
+
+        self.img_path = None
+        self.img_vector = None
+        self.img_roi = None
+        self.img_red = None
+        self.img_blue = None
+        self.iter = 0
 
 
     """
@@ -119,33 +126,42 @@ class parking:
         hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
 
         if color == 'green':
-            mask = cv2.inRange(hsv, (25, 60, 50), (60, 255, 255))
+            mask = cv2.inRange(hsv, (25, 60, 50), (80, 255, 255))
             imask = mask > 0
             output = np.zeros_like(hsv, np.uint8)
             output[imask] = 255
-            output = cv2.cvtColor(output, cv2.COLOR_BGR2GRAY)
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+            output = cv2.cvtColor(output, cv2.COLOR_RGB2GRAY)
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
             output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+
+            output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
             # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
             return output
         
         elif color == 'red':
-            mask = cv2.inRange(hsv, (115, 50, 50), (150, 255, 255))
+            mask = cv2.inRange(hsv, (110, 50, 50), (150, 255, 255))
+
         elif color == 'blue':
-            mask = cv2.inRange(hsv, (10, 100, 50), (80, 255, 255))
+            mask = cv2.inRange(hsv, (10, 80, 100), (43, 255, 255))
+
         elif color == 'yellow':
             mask = cv2.inRange(hsv, (80, 40, 145), (150, 255, 255))
+
         elif color == 'purple':
             mask = cv2.inRange(hsv, (130, 170, 130), (180, 255, 150))
+            imask = mask > 0
+            output = np.zeros_like(hsv, np.uint8)
+            output[imask] = 255
             # mask = cv2.inRange(hsv, (80, 100, 145), (150, 255, 255))
-
+            return output
         imask = mask > 0
         output = np.zeros_like(hsv, np.uint8)
         output[imask] = 255
-        output = cv2.cvtColor(output, cv2.COLOR_BGR2GRAY)
+        output = cv2.cvtColor(output, cv2.COLOR_RGB2GRAY)
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
         output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (30, 30))
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
         output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
         # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
         return output
@@ -155,7 +171,14 @@ class parking:
     """
     def calibration_map(self):
         img_parkinglot = self.img_parkinglot
+        # print(img_parkinglot.shape)
+        # cv2.imwrite('./dddd.png', img_parkinglot)
         img_parkinglot_hsv = self.hsv(img_parkinglot, 'green')
+        img_parkinglot_hsv_2 = cv2.cvtColor(img_parkinglot_hsv, cv2.COLOR_GRAY2BGR)
+        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/green_point.png',img_parkinglot_hsv_2)
+        
+        # cv2.imshow(img_parkinglot_hsv_2)
+        # cv2.waitKey(1)
         label_parkinglot = label(img_parkinglot_hsv)
         regions = regionprops(label_parkinglot)
         center_point = []
@@ -185,17 +208,25 @@ class parking:
         warped_img = cv2.warpPerspective(img_parkinglot, M, (self.map_W, self.map_H))
         warped_img = cv2.flip(warped_img, 0)
         self.img_map = warped_img
-        # return warped_img
+        output = warped_img.copy()
+        self.is_parkinglot = False
+        return output
 
     """
     find the head of vehicle
     """
     def find_property(self):
         img_parkinglot = self.calibration_map()
-        
-        img_red = self.hsv(img_parkinglot,'red')
+        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/parkinglot.png',img_parkinglot)
+        img_red = self.hsv(img_parkinglot, 'red')
         img_blue = self.hsv(img_parkinglot, 'blue')
-        
+
+        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_red.png', img_red)
+        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_blue.png', img_blue)
+
+        self.img_red = img_red
+        self.img_blue = img_blue
+
         label_img_red = label(img_red)
         label_img_blue = label(img_blue)
         
@@ -215,9 +246,9 @@ class parking:
             y0, x0 = round(y0), round(x0)
             vector.append([x0, y0])
             # img = cv2.line(img, (x0, y0), (x0, y0),(255,0,0),5) 
-    
-        cX = round((vector[0][0] + vector[1][0])/2)
-        cY = round((vector[0][1] + vector[1][1])/2)
+        # print(cX, cY)
+        cX = int(round((vector[0][0] + vector[1][0])/2))
+        cY = int(round((vector[0][1] + vector[1][1])/2))
         
         X1_t = vector[0][0]
         X2_t = vector[1][0]
@@ -230,9 +261,10 @@ class parking:
         
         output["vehicle_center"] = [cX, cY]
         output["angle"] = angle_deg
-        
-        img = cv2.line(img_parkinglot, (vector[0][0], vector[0][1]), (vector[1][0], vector[1][1]),(0,255,0), 4)
-        cv2.imshow(img)
+        # print(img_parkinglot.shape)
+        # img_parkinglot = cv2.cvtColor(img_parkinglot, cv2.COLOR_)
+        img = cv2.line(img_parkinglot, (int(vector[0][0]), int(vector[0][1])), (int(vector[1][0]), int(vector[1][1])),(0,255,0), 4)
+        cv2.imwrite('prop.png', img)
         cv2.waitKey(1)
         return output
     
@@ -241,13 +273,50 @@ class parking:
         cY = target["vehicle_center"][1]
         agl = target["angle"]
         img_parking_path = self.img_parking_path
-        img_parking_path = self.hsv(img_parking_path, 'purple')
+        # img_parking_path = self.img_parkinglot
 
-        M = cv2.getRotationMatrix2D((cX, cY), 180-agl, 1.0)
-        rotate_img = cv2.warpAffine(img_parking_path, M, (self.map_W, self.map_H))
+        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path_ori.png', img_parking_path)
+
+        img_parking_path = self.hsv(img_parking_path, 'purple')
+        img_parking_path = cv2.cvtColor(img_parking_path, cv2.COLOR_BGR2GRAY)
+        # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path.png', img_parking_path)
+
+        # print(img_parking_path.shape)
+        # img_parking_path = self.img_parkinglot
+        dx = self.map_W/2 - cX
+        dy = self.map_H/2 - cY
+        # print(dx, dy)
+        mtrx = np.float32([[1, 0, dx],
+                           [0, 1, dy]])
+        img_trans = cv2.warpAffine(img_parking_path, mtrx, (self.map_W, self.map_H))   
+        cv2.imwrite('./img_trans.png', img_trans)
+        M = cv2.getRotationMatrix2D((self.map_W/2, self.map_H/2), agl, 1.0)
+        rotate_img = cv2.warpAffine(img_trans, M, (self.map_W, self.map_H))
         roi_region = 100
-        roi = rotate_img[int(cY-roi_region/2):int(cY+roi_region/2), int(cX-roi_region):int(cX)]
-        roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        # print(cX, cY)
+        cX = self.map_W/2
+        cY = self.map_H/2
+        rotate_img_save = cv2.line(rotate_img, (cX,cY), (cX,cY), (255,255,0), 3)
+        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img_save)
+
+          
+        roi_x_under = int(cX-roi_region)
+        roi_x_upper = int(cX)
+        roi_y_under = int(cY-roi_region/2)
+        roi_y_upper = int(cY+roi_region/2)
+        if roi_x_under < 0:
+            roi_x_under = 0
+        if roi_y_under < 0:
+            roi_y_under = 0
+        # print(roi_x_under, roi_x_upper)
+        # print(roi_y_under, roi_y_upper)
+        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img)
+        # roi = rotate_img[roi_y_under:roi_y_upper, roi_x_under:roi_x_upper]
+        roi = rotate_img
+        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path.png', img_parking_path)
+        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/roi.png',roi)
+        # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        self.img_roi = roi
         return roi
     
     
@@ -272,9 +341,8 @@ class parking:
         front_curverad = ((1 + (2*path_fit[0]*look_a_head + path_fit[1])**2)**1.5) / (2*path_fit[0]) * self.m_per_pixel
         cte = roi.shape[0]/2 - front_lane
         steer = gain_cte * cte + gain_curv / front_curverad
-        self.steer = steer
-        
-        
+        steer = max(min(steer, 20.0), -20.0)
+        self.steer = -steer
         
         
 
@@ -285,9 +353,20 @@ class parking:
         #         dy = self.coord_y[i+1] - self.coord_y[i]
         #         # ax =
         # if self.is_accel_x and self.is_accel_y and self.is_agl and self.is_img:
-        if self.is_parking_path:
-           self.get_steer()
+        if self.is_parking_path and self.is_parkinglot:
+            self.get_steer()
+            print(self.steer)
             
+            cv2.imshow('roi', self.img_roi)
+            # cv2.imshow('red', self.img_red)
+            # cv2.imshow('blue', self.img_blue)
+
+            cv2.imshow('map', self.img_map)
+            cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/seq/roi/'+'img_roi'+ str(self.iter).zfill(4)+'.png', self.img_roi)
+            cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/seq/vector2/'+'img_rotate'+ str(self.iter).zfill(4)+'.png', self.img_map)
+
+            print(self.iter)
+            self.iter = self.iter+1
         else:
             print('wait for all receiving')
             
