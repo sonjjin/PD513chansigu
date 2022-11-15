@@ -1,8 +1,4 @@
-*.png
-!results/*.png
-!results/seq/*.png
-!results/*/*/*.png
-!seq/*/*.png
+!caffeine/src/images/*.png
 .ipynb_checkpoints
 temp/
 .DS_Store
