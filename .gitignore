@@ -1,4 +1,4 @@
-*.png
+!*.png
 !results/*.png
 !results/seq/*.png
 !results/*/*/*.png
