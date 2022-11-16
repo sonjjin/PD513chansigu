@@ -1,14 +1,24 @@
-#include <ros.h>
-#include <std_msgs/String.h>
-#include <std_msgs/Float32.h>
+/* Copyright (C) 2012 Kristian Lauszus, TKJ Electronics. All rights reserved.
+  This software may be distributed and modified under the terms of the GNU
+  General Public License version 2 (GPL2) as published by the Free Software
+  Foundation and appearing in the file GPL2.TXT included in the packaging of
+  this file. Please note that GPL2 Section 2[b] requires that all works based
+  on this software must also be made publicly available under the terms of
+  the GPL2 ("Copyleft").
+  Contact information
+  -------------------
+  Kristian Lauszus, TKJ Electronics
+  Web : http://www.tkjelectronics.com
+  e-mail : kristianl@tkjelectronics.com
+*/
+
 #include <Wire.h>
-#include <MPU6050_tockn.h>
-#include "Kalman.h"
+#include "Kalman.h" // Source: https://github.com/TKJElectronics/KalmanFilter
 
 Kalman kalmanX; // Create the Kalman instances
 Kalman kalmanY;
-Kalman kalmanZ;
 
+/* IMU Data */
 int16_t accX, accY, accZ;
 int16_t tempRaw;
 int16_t gyroX, gyroY, gyroZ;
@@ -21,43 +31,13 @@ double kalAngleX, kalAngleY; // Calculate the angle using a Kalman filter
 
 uint32_t timer;
 uint8_t i2cData[14]; // Buffer for I2C data
-//Set up the ros node and publisher
-//std_msgs::String imu_msg;
-std_msgs::Float32 imu_accX;
-std_msgs::Float32 imu_accY;
-std_msgs::Float32 imu_gyroZ;
-//std_msgs::Float32 imu_aglX;
-//std_msgs::Float32 imu_aglY;
-//ros::Publisher imu("imu", &imu_msg);
-ros::Publisher accX("accX", &imu_accX);
-ros::Publisher accY("accY", &imu_accY);
-//ros::Publisher aglX("aglX", &imu_aglX);
-//ros::Publisher aglY("aglY", &imu_aglY);
-ros::Publisher gyroZ("gyroZ", &imu_aglZ);
+////////////////////////////
 
-ros::NodeHandle nh;
-// MPU6050 mpu6050(Wire, 0.08, 0.92);
-long publisher_timer;
-
-
-void setup()
-{
-  nh.initNode();
-//  nh.advertise(imu);
-  nh.advertise(accX);
-  nh.advertise(accY);
-  //nh.advertise(aglX);
-  //nh.advertise(aglY);
-  nh.advertise(gyroZ);
-  Serial.begin(115200);
+void setup() {
+  Serial.begin(230400);
   Wire.begin();
   i2cData[0] = 7; // Set the sample rate to 1000Hz - 8kHz/(7+1) = 1000Hz
-  i2cData[1] = 0x02; // Disable FSYNC and set 260 Hz Acc filtering, 256 Hz Gyro filtering, 8 KHz sampling
-  //0x00 : 256hz
-  //0x01 : 199hz
-  //0x02 : 98 hz
-  //0x03 : 42 hz
-  
+  i2cData[1] = 0x00; // Disable FSYNC and set 260 Hz Acc filtering, 256 Hz Gyro filtering, 8 KHz sampling
   i2cData[2] = 0x00; // Set Gyro Full Scale Range to ±250deg/s
   i2cData[3] = 0x00; // Set Accelerometer Full Scale Range to ±2g
   while (i2cWrite(0x19, i2cData, 4, false)); // Write to all four registers at once
@@ -68,6 +48,7 @@ void setup()
     while (1);
 
   }
+
   delay(100); // Wait for sensor to stabilize
 
   /* Set kalman and gyro starting angle */
@@ -84,33 +65,23 @@ void setup()
   kalmanY.setAngle(accYangle);
   gyroXangle = accXangle;
   gyroYangle = accYangle;
+  compAngleX = accXangle;
+  compAngleY = accYangle;
 
-  timer = millis();
+  timer = micros();
+
+
+
 }
 
-void loop()
-{
-  if (millis() > publisher_timer)
-  {
-      angleValue();    
-      AcX = round(mpu6050.getAccX()*100);
-      AcY = round(mpu6050.getAccY()*100);
-      GyZ = round(mpu6050.getAngleZ()*100);
+void loop() {
+  angleValue();
+  
+  Serial.print(kalAngleX);
+  Serial.print('\t');
+  Serial.print(kalAngleY);
+  Serial.println('\t');
 
-      imu_accX.data = AcX;
-      imu_accY.data = AcY;
-      //imu_aglX.data = GyX;
-      //imu_aglY.data = GyY;
-      imu_aglZ.data = GyZ;
-      accX.publish(&imu_accX);
-      accY.publish(&imu_accY);
-      //aglX.publish(&imu_aglX);
-      //aglY.publish(&imu_aglY);
-      aglZ.publish(&imu_aglZ);
-      publisher_timer = millis() + 100; //publish 100ms
-      nh.spinOnce();
- 
-  }
 }
 
 void angleValue() {
@@ -128,29 +99,25 @@ void angleValue() {
   // We then convert it to 0 to 2π and then from radians to degrees
   accXangle = (atan2(accY, accZ) + PI) * RAD_TO_DEG;
   accYangle = (atan2(accX, accZ) + PI) * RAD_TO_DEG;
-  accZangle = (atan2(accY, accX) + PI) * RAD_TO_DEG;
-
 
   double gyroXrate = (double)gyroX / 131.0;
   double gyroYrate = -((double)gyroY / 131.0);
   gyroXangle += gyroXrate * ((double)(micros() - timer) / 1000000); // Calculate gyro angle without any filter
   gyroYangle += gyroYrate * ((double)(micros() - timer) / 1000000);
-  gyroZangle += gyroZrate * ((double)(micros() - timer) / 1000000);
 
 
-
-  // compAngleX = (0.93 * (compAngleX + (gyroXrate * (double)(micros() - timer) / 1000000))) + (0.07 * accXangle); // Calculate the angle using a Complimentary filter
-  // compAngleY = (0.93 * (compAngleY + (gyroYrate * (double)(micros() - timer) / 1000000))) + (0.07 * accYangle);
+  compAngleX = (0.93 * (compAngleX + (gyroXrate * (double)(micros() - timer) / 1000000))) + (0.07 * accXangle); // Calculate the angle using a Complimentary filter
+  compAngleY = (0.93 * (compAngleY + (gyroYrate * (double)(micros() - timer) / 1000000))) + (0.07 * accYangle);
 
   kalAngleX = kalmanX.getAngle(accXangle, gyroXrate, (double)(micros() - timer) / 1000000); // Calculate the angle using a Kalman filter
   kalAngleY = kalmanY.getAngle(accYangle, gyroYrate, (double)(micros() - timer) / 1000000);
-  kalAngleZ = kalmanZ.getAngle(accZangle, gyroZrate, (double)(micros() - timer) / 1000000);
-
   timer = micros();
 
-  // temp = ((double)tempRaw + 12412.0) / 340.0;
+  temp = ((double)tempRaw + 12412.0) / 340.0;
 
 
 }
+
+
 
 
