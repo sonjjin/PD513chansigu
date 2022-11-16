@@ -50,7 +50,7 @@ void setup()
   //nh.advertise(aglY);
   nh.advertise(gyZ);
   nh.advertise(aglZ);
-  img_aglZ.Data = 0;
+  imu_aglZ.data = 0.0;
   aglZ.publish(&imu_aglZ);
   nh.spinOnce();
 
