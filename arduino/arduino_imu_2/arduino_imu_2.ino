@@ -93,15 +93,12 @@ void loop()
   if (millis() > publisher_timer)
   {
       angleValue();    
-      AcX = round(mpu6050.getAccX()*100);
-      AcY = round(mpu6050.getAccY()*100);
-      GyZ = round(mpu6050.getAngleZ()*100);
 
-      imu_accX.data = AcX;
-      imu_accY.data = AcY;
+      imu_accX.data = accX;
+      imu_accY.data = accY;
       //imu_aglX.data = GyX;
       //imu_aglY.data = GyY;
-      imu_aglZ.data = GyZ;
+      imu_aglZ.data = kalAngleZ;
       accX.publish(&imu_accX);
       accY.publish(&imu_accY);
       //aglX.publish(&imu_aglX);
@@ -133,6 +130,8 @@ void angleValue() {
 
   double gyroXrate = (double)gyroX / 131.0;
   double gyroYrate = -((double)gyroY / 131.0);
+  double gyroZrate = (double)gyroZ / 131.0;
+
   gyroXangle += gyroXrate * ((double)(micros() - timer) / 1000000); // Calculate gyro angle without any filter
   gyroYangle += gyroYrate * ((double)(micros() - timer) / 1000000);
   gyroZangle += gyroZrate * ((double)(micros() - timer) / 1000000);
