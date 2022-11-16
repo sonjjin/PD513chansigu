@@ -57,6 +57,9 @@ class parking:
         self.img_parkinglot = None
         self.is_parkinglot = False
 
+        self.is_red = False
+        self.is_blue = False
+
         self.img_map = None
         self.map_W = 465
         self.map_H = 443
@@ -257,6 +260,9 @@ class parking:
         X_t = X2_t - X1_t
         Y_t = Y2_t - Y1_t
         angle = m.atan2(Y_t, X_t)
+        if angle < 0:
+            angle = -angle
+        
         angle_deg = angle * 180 / m.pi
         
         output["vehicle_center"] = [cX, cY]
@@ -297,9 +303,9 @@ class parking:
         rotate_img = cv2.warpAffine(img_trans, M, (self.map_W, self.map_H))
         roi_region = 100
         # print(cX, cY)
-        cX = self.map_W/2
-        cY = self.map_H/2
-        rotate_img_save = cv2.line(rotate_img, (cX,cY), (cX,cY), (255,255,0), 3)
+        cX_img = self.map_W/2
+        cY_img = self.map_H/2
+        rotate_img_save = cv2.line(rotate_img, (cX_img,cY_img), (cX_img,cY_img), (255,255,0), 3)
         cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img_save)
 
           
@@ -314,8 +320,8 @@ class parking:
         # print(roi_x_under, roi_x_upper)
         # print(roi_y_under, roi_y_upper)
         cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img)
-        # roi = rotate_img[roi_y_under:roi_y_upper, roi_x_under:roi_x_upper]
-        roi = rotate_img
+        roi = rotate_img[roi_y_under:roi_y_upper, roi_x_under:roi_x_upper]
+        # roi = rotate_img
         cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path.png', img_parking_path)
         cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/roi.png',roi)
         # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
@@ -330,7 +336,7 @@ class parking:
         
         gain_cte = 0.3
         gain_curv = -1
-        look_a_head = 70
+        look_a_head = roi.shape[0]*0.2
         
         path_idx = np.nonzero(roi)
         path_fit = np.polyfit(path_idx[0], path_idx[1], 2)
@@ -339,10 +345,10 @@ class parking:
         # path_fitx = path_fit[0]*ploty**2+path_fit[1]*ploty+path_fit[2]
         # print(path_fitx)
         # path_fit_idx = np.stack((path_fitx, ploty), axis = -1).astype(int)
-        look_a_head = 70
+        # look_a_head = 70
         front_lane = path_fit[0]*look_a_head**2 + path_fit[1]*look_a_head + path_fit[2]
         front_curverad = ((1 + (2*path_fit[0]*look_a_head + path_fit[1])**2)**1.5) / (2*path_fit[0]) * self.m_per_pixel
-        cte = roi.shape[0]/2 - front_lane
+        cte = look_a_head - front_lane
         steer = gain_cte * cte + gain_curv / front_curverad
         steer = max(min(steer, 20.0), -20.0)
         self.steer = -steer
