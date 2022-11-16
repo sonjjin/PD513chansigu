@@ -24,7 +24,7 @@ uint8_t i2cData[14]; // Buffer for I2C data
 std_msgs::Float32 imu_accX;
 std_msgs::Float32 imu_accY;
 std_msgs::Float32 imu_gyZ;
-std_msgs::Float32 imu_timer;
+std_msgs::Float32 imu_aglZ;
 
 //std_msgs::Float32 imu_aglX;
 //std_msgs::Float32 imu_aglY;
@@ -34,7 +34,7 @@ ros::Publisher accY("accY", &imu_accY);
 //ros::Publisher aglX("aglX", &imu_aglX);
 //ros::Publisher aglY("aglY", &imu_aglY);
 ros::Publisher gyZ("gyZ", &imu_gyZ);
-
+ros::Publisher aglZ("aglZ", &imu_aglZ);
 ros::NodeHandle nh;
 // MPU6050 mpu6050(Wire, 0.08, 0.92);
 long publisher_timer;
@@ -49,6 +49,11 @@ void setup()
   //nh.advertise(aglX);
   //nh.advertise(aglY);
   nh.advertise(gyZ);
+  nh.advertise(aglZ);
+  img_aglZ.Data = 0;
+  aglZ.publish(&imu_aglZ);
+  nh.spinOnce();
+
   Serial.begin(115200);
   Wire.begin();
   i2cData[0] = 7; // Set the sample rate to 1000Hz - 8kHz/(7+1) = 1000Hz

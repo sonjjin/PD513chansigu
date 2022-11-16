@@ -24,7 +24,8 @@ class kalmanfilter:
         self.sub_accX = rospy.Subscriber('/arduino_imu/accX', Float32, self.accel_x_callback) # cm/s
         self.sub_accY = rospy.Subscriber('/arduino_imu/accY', Float32, self.accel_y_callback) # cm/s
         self.sub_gyroZ = rospy.Subscriber('/arduino_imu/gyZ', Float32, self.gyro_z_callback) # degree sum
-     
+
+        self.pub_aglZ = rospy.Publisher('/arduino_imu/aglZ', Float32, queue_size=1)
         # imu
         self.accel_x = None
         self.accel_y = None
@@ -66,6 +67,7 @@ class kalmanfilter:
             self.kalAngleZ = self.kalman.getAngle(accZangle, gyroZrate, dt)
             self.timer = time.time()
             print(self.kalAngleZ)
+            self.pub_aglZ.publish(self.kalAngleZ)
             
         else:
             print('wait for all receiving')
