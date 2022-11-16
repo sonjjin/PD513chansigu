@@ -79,11 +79,17 @@ void setup()
   // We then convert it to 0 to 2π and then from radians to degrees
   accYangle = (atan2(accX, accZ) + PI) * RAD_TO_DEG;
   accXangle = (atan2(accY, accZ) + PI) * RAD_TO_DEG;
+  accZangle = (atan2(accY, accX) + PI) * RAD_TO_DEG;
+
 
   kalmanX.setAngle(accXangle); // Set starting angle
   kalmanY.setAngle(accYangle);
+  kalmanZ.setAngle(accZangle);
+
   gyroXangle = accXangle;
   gyroYangle = accYangle;
+  gyroZangle = accZangle;
+
 
   timer = millis();
 }
