@@ -1,16 +1,17 @@
 #include <ros.h>
+#include <std_msgs/String.h>
 #include <std_msgs/Float32.h>
 #include <Wire.h>
 #include <MPU6050_tockn.h>
 #include "kalman.h"
 
-// Kalman kalmanX; // Create the Kalman instances
-// Kalman kalmanY;
+Kalman kalmanX; // Create the Kalman instances
+Kalman kalmanY;
 Kalman kalmanZ;
 
-int16_t AcX, AcY;
-
-int16_t gyroZ;
+int16_t AcX, AcY, AcZ;
+int16_t tempRaw;
+int16_t gyroX, gyroY, gyroZ;
 
 double accXangle, accYangle, accZangle; // Angle calculate using the accelerometer
 double temp; // Temperature
@@ -73,10 +74,16 @@ void setup()
   while (i2cRead(0x3B, i2cData, 6));
   AcX = ((i2cData[0] << 8) | i2cData[1]);
   AcY = ((i2cData[2] << 8) | i2cData[3]);
+  AcZ = ((i2cData[4] << 8) | i2cData[5]);
   // atan2 outputs the value of -π to π (radians) - see http://en.wikipedia.org/wiki/Atan2
   // We then convert it to 0 to 2π and then from radians to degrees
+  accYangle = (atan2(AcX, AcZ) + PI) * RAD_TO_DEG;
+  accXangle = (atan2(AcY, AcZ) + PI) * RAD_TO_DEG;
   accZangle = (atan2(AcY, AcX) + PI) * RAD_TO_DEG;
 
+
+  kalmanX.setAngle(accXangle); // Set starting angle
+  kalmanY.setAngle(accYangle);
   kalmanZ.setAngle(accZangle);
 
   gyroXangle = accXangle;
@@ -114,25 +121,39 @@ void angleValue() {
   while (i2cRead(0x3B, i2cData, 14));
   AcX = ((i2cData[0] << 8) | i2cData[1]);
   AcY = ((i2cData[2] << 8) | i2cData[3]);
+  AcZ = ((i2cData[4] << 8) | i2cData[5]);
+  tempRaw = ((i2cData[6] << 8) | i2cData[7]);
+  gyroX = ((i2cData[8] << 8) | i2cData[9]);
+  gyroY = ((i2cData[10] << 8) | i2cData[11]);
   gyroZ = ((i2cData[12] << 8) | i2cData[13]);
 
   // atan2 outputs the value of -π to π (radians) - see http://en.wikipedia.org/wiki/Atan2
   // We then convert it to 0 to 2π and then from radians to degrees
+  accXangle = (atan2(AcY, AcZ) + PI) * RAD_TO_DEG;
+  accYangle = (atan2(AcX, AcZ) + PI) * RAD_TO_DEG;
   accZangle = (atan2(AcY, AcX) + PI) * RAD_TO_DEG;
 
 
+  double gyroXrate = (double)gyroX / 131.0;
+  double gyroYrate = -((double)gyroY / 131.0);
   double gyroZrate = (double)gyroZ / 131.0;
 
+  gyroXangle += gyroXrate * ((double)(micros() - timer) / 1000000); // Calculate gyro angle without any filter
+  gyroYangle += gyroYrate * ((double)(micros() - timer) / 1000000);
   gyroZangle += gyroZrate * ((double)(micros() - timer) / 1000000);
 
 
 
   // compAngleX = (0.93 * (compAngleX + (gyroXrate * (double)(micros() - timer) / 1000000))) + (0.07 * accXangle); // Calculate the angle using a Complimentary filter
   // compAngleY = (0.93 * (compAngleY + (gyroYrate * (double)(micros() - timer) / 1000000))) + (0.07 * accYangle);
+
+  kalAngleX = kalmanX.getAngle(accXangle, gyroXrate, (double)(micros() - timer) / 1000000); // Calculate the angle using a Kalman filter
+  kalAngleY = kalmanY.getAngle(accYangle, gyroYrate, (double)(micros() - timer) / 1000000);
   kalAngleZ = kalmanZ.getAngle(accZangle, gyroZrate, (double)(micros() - timer) / 1000000);
 
   timer = micros();
 
   // temp = ((double)tempRaw + 12412.0) / 340.0;
+
 
 }
