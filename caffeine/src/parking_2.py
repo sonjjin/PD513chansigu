@@ -261,6 +261,7 @@ class parking:
         
         output["vehicle_center"] = [cX, cY]
         output["angle"] = angle_deg
+        
         # print(img_parkinglot.shape)
         # img_parkinglot = cv2.cvtColor(img_parkinglot, cv2.COLOR_)
         img = cv2.line(img_parkinglot, (int(vector[0][0]), int(vector[0][1])), (int(vector[1][0]), int(vector[1][1])),(0,255,0), 4)
@@ -271,7 +272,9 @@ class parking:
     def get_roi(self, target):
         cX = target["vehicle_center"][0]
         cY = target["vehicle_center"][1]
-        agl = target["angle"]
+        agl_glo = target["angle"]
+        agl = -(180 - agl_glo) # turn angle
+        
         img_parking_path = self.img_parking_path
         # img_parking_path = self.img_parkinglot
 
