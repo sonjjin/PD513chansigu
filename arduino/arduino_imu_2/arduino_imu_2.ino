@@ -91,12 +91,12 @@ void setup()
   gyroZangle = accZangle;
 
 
-  timer = millis();
+  timer = micros();
 }
 
 void loop()
 {
-  if (millis() > publisher_timer)
+  if (micros() > publisher_timer)
   {
       angleValue();    
 
@@ -110,7 +110,7 @@ void loop()
       //aglX.publish(&imu_aglX);
       //aglY.publish(&imu_aglY);
       aglZ.publish(&imu_aglZ);
-      publisher_timer = millis() + 100; //publish 100ms
+      publisher_timer = micros() + 100000; //publish 100ms
       nh.spinOnce();
  
   }
