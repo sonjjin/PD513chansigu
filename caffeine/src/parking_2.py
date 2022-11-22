@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
+
 import numpy as np
 import cv2
 import math as m
 from cv_bridge import CvBridge
 from skimage.measure import label, regionprops
+import time
 
 import matplotlib.pyplot as plt
 import os
@@ -76,8 +78,10 @@ class parking:
         self.img_red = None
         self.img_blue = None
         self.iter = 0
-        self.agl_cal = 0
-        self.agl_init = 0
+        self.cte = 0
+        self.agl_cal = float(0)
+        self.agl_init = float(0)
+        self.start_time = time.time()
 
 
     """
@@ -134,30 +138,46 @@ class parking:
         hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
 
         if color == 'green':
-            mask = cv2.inRange(hsv, (25, 60, 50), (80, 255, 255))
+            mask = cv2.inRange(hsv, (30, 90, 50), (80, 255, 255))
             imask = mask > 0
             output = np.zeros_like(hsv, np.uint8)
             output[imask] = 255
             output = cv2.cvtColor(output, cv2.COLOR_RGB2GRAY)
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
-            output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
 
             output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
             # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
             return output
         
         elif color == 'red':
-            mask = cv2.inRange(hsv, (110, 50, 50), (150, 255, 255))
-
-        elif color == 'blue':
-            mask = cv2.inRange(hsv, (10, 100, 140), (53, 255, 255))
+            mask = cv2.inRange(hsv, (110, 100, 100), (150, 255, 255))
             imask = mask > 0
             output = np.zeros_like(hsv, np.uint8)
             output[imask] = 255
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
             output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
-            # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (24, 24))
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+            output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
+            # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
+            # output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+            # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
+            return output
+
+
+        elif color == 'blue':
+            mask = cv2.inRange(hsv, (0, 150, 100), (20, 255, 255))
+            imask = mask > 0
+            output = np.zeros_like(hsv, np.uint8)
+            output[imask] = 255
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+            output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
+            # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
             # output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
             # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
             return output
@@ -177,10 +197,13 @@ class parking:
         output = np.zeros_like(hsv, np.uint8)
         output[imask] = 255
         output = cv2.cvtColor(output, cv2.COLOR_RGB2GRAY)
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
-        output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+        # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (1, 1))
+        # output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+        # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+        # output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (10, 10))
+        output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
         # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
         return output
 
@@ -254,7 +277,8 @@ class parking:
         vector = []
         output = {}
         if len(regions_red) == 1:
-            y0, x0 = regions_red[0].centroid
+            # print(regions_red[0].centroid)
+            y0, x0 = regions_red[0].centroid[0], regions_red[0].centroid[1]
             y0, x0 = round(y0), round(x0)
             vector.append([x0, y0])
             # img = cv2.line(img, (x0, y0), (x0, y0),(0,0,255),5)
@@ -277,11 +301,11 @@ class parking:
         Y_t = Y2_t - Y1_t
         # print(X1_t, vector[0][1])
         
-        angle = m.atan2(Y_t, X_t)
-        if angle < 0:
-            angle = -angle
-        
+        angle = m.atan2(Y_t, X_t) + m.pi
+        # if angle < 0:
+        #     angle = -angle
         angle_deg = angle * 180 / m.pi
+        # print(angle_deg)
         
         output["vehicle_center"] = [cX, cY]
         output["angle"] = angle_deg
@@ -296,9 +320,9 @@ class parking:
         cX = target["vehicle_center"][0]
         cY = target["vehicle_center"][1]
         agl_glo = target["angle"]
-        agl = -(180 - agl_glo) # turn angle
-        agl = agl_glo
-        print(agl)
+        agl = (180 - agl_glo) # turn angle
+        # agl = agl_glo
+        # print(agl
         
         img_parking_path = self.img_parking_path
         # img_parking_path = self.img_parkinglot
@@ -313,25 +337,38 @@ class parking:
         # img_parking_path = self.img_parkinglot
         dx = self.map_W/2 - cX
         dy = self.map_H/2 - cY
+        # print(cX, cY)
         # print(dx, dy)
         mtrx = np.float32([[1, 0, dx],
                            [0, 1, dy]])
-        img_trans = cv2.warpAffine(img_parking_path, mtrx, (self.map_W, self.map_H))   
+        
+        img_trans = cv2.warpAffine(img_parking_path, mtrx, (self.map_W, self.map_H)) 
+
         # cv2.imwrite('./img_trans.png', img_trans)
         M = cv2.getRotationMatrix2D((self.map_W/2, self.map_H/2), agl, 1.0)
         rotate_img = cv2.warpAffine(img_trans, M, (self.map_W, self.map_H))
+        
         roi_region = 400
         # print(cX, cY)
         cX_img = self.map_W/2
         cY_img = self.map_H/2
-        rotate_img_save = cv2.line(rotate_img, (cX_img,cY_img), (cX_img,cY_img), (255,255,0), 3)
-        # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img_save)
+        img_trans_ori = cv2.warpAffine(self.img_parkinglot, mtrx, (self.map_W, self.map_H))   
+        rotate_img_ori = cv2.warpAffine(img_trans_ori, M, (self.map_W, self.map_H))
+        rotate_img_save = cv2.line(rotate_img_ori, (cX_img,cY_img), (cX_img,cY_img), (255,255,0), 3)
+        # cv2.imwrite(self.save_path + '/img_rotate.png', rotate_img_save)
+        cv2.imwrite(self.save_path + '/rotate/' + str(self.iter).zfill(4) + '.png', rotate_img_save)
+        cv2.imshow('d', rotate_img_save)
+        # cv2.imshow('ddd', img_trans_ori)
 
-          
+        rotate_img_save = cv2.line(rotate_img, (cX_img,cY_img), (cX_img,cY_img), (255,255,0), 3)
+        # cv2.imshow('dd',rotate_img)
+
+
         roi_x_under = int(cX_img-roi_region)
         roi_x_upper = int(cX_img)
         roi_y_under = int(cY_img-roi_region/2)
         roi_y_upper = int(cY_img+roi_region/2)
+        # print(roi_x_under, roi_x_upper, roi_y_under, roi_y_upper)
         if roi_x_under < 0:
             roi_x_under = 0
         if roi_y_under < 0:
@@ -339,8 +376,12 @@ class parking:
         # print(roi_x_under, roi_x_upper)
         # print(roi_y_under, roi_y_upper)
         # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img)
-        roi = rotate_img[roi_y_under:roi_y_upper, roi_x_under:roi_x_upper]
+        # roi = rotate_img[roi_y_under:roi_y_upper, roi_x_under:roi_x_upper]
         roi = rotate_img
+        roi = cv2.rotate(roi, cv2.ROTATE_90_CLOCKWISE)
+        roi = roi[:roi.shape[0]/2,:]
+        # roi = rotate_img[roi_x_under:roi_x_upper, roi_y_under:roi_y_upper]
+
         # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path.png', img_parking_path)
         # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/roi.png',roi)
         # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
@@ -353,24 +394,46 @@ class parking:
         target = self.find_property()
         roi = self.get_roi(target)
         
-        gain_cte = 0.8
+        gain_cte = 0.3
         gain_curv = -1
-        look_a_head = roi.shape[0]*0.2
+        cte = 0
+        # look_a_head = roi.shape[0]/2 * 0.9
+        look_a_head = roi.shape[0] * 0.3
+        ref = roi.shape[1]/2
         
         path_idx = np.nonzero(roi)
         path_fit = np.polyfit(path_idx[0], path_idx[1], 2)
+        # path_fit = np.polyfit(path_idx[0], path_idx[1], 1)
+
         # print(path_fit)
-        # ploty = np.linspace(0, roi.shape[1]-1, roi.shape[1]) # y value
-        # path_fitx = path_fit[0]*ploty**2+path_fit[1]*ploty+path_fit[2]
         # print(path_fitx)
-        # path_fit_idx = np.stack((path_fitx, ploty), axis = -1).astype(int)
         # look_a_head = 70
+
+        # print(path_fit)
+        ploty = np.linspace(0, roi.shape[0]-1, roi.shape[0]) # y value
+        path_fitx = path_fit[0]*ploty**2+path_fit[1]*ploty+path_fit[2]
+        # path_fitx = path_fit[0]*ploty+path_fit[1]
+
+        roi = cv2.cvtColor(roi, cv2.COLOR_GRAY2BGR)
+        for i in range(len(ploty)):
+            roi = cv2.line(roi, (int(round(path_fitx[i])), int(round(ploty[i]))), (int(round(path_fitx[i])), int(round(ploty[i]))), (255,0,0), 2)
+        roi = cv2.line(roi, (int(round(roi.shape[1]/2)), int(round(look_a_head))), (int(round(roi.shape[1]/2)), int(round(look_a_head))), (0,255,0), 10)
+        cv2.imwrite(self.save_path + '/roi/' + str(self.iter).zfill(4) + '.png', roi)
+        
+
+
         front_lane = path_fit[0]*look_a_head**2 + path_fit[1]*look_a_head + path_fit[2]
+        # front_lane = path_fit[0]*look_a_head + path_fit[1]
+
+        roi = cv2.line(roi, (int(round(front_lane)), int(round(look_a_head))), (int(round(front_lane)), int(round(look_a_head))), (0,255,120), 10)
+
+        cv2.imshow('dddd', roi)
         front_curverad = ((1 + (2*path_fit[0]*look_a_head + path_fit[1])**2)**1.5) / (2*path_fit[0]) * self.m_per_pixel
-        cte = look_a_head - front_lane
+        cte = ref - front_lane
         steer = gain_cte * cte + gain_curv / front_curverad
         steer = max(min(steer, 20.0), -20.0)
-        self.steer = -steer
+        self.steer = steer
+        self.cte = cte
         
         
 
@@ -381,52 +444,81 @@ class parking:
         #         dy = self.coord_y[i+1] - self.coord_y[i]
         #         # ax =
         # if self.is_accel_x and self.is_accel_y and self.is_agl and self.is_img:
-        if self.is_agl and self.agl_cal < 100:
-            self.agl_cal = self.agl_cal + 1
+        if self.is_agl and self.agl_cal < 10:
+
             self.is_agl = False
-            self.agl_init += self.agl
-            
-            if self.agl_cal == 99:
-                self.agl_init /= 100
+            self.agl_init = self.agl_init + self.agl.data
+            self.agl_cal = self.agl_cal + 1
+            # print(self.agl_init)
+            if self.agl_cal == 10:
+                self.agl_init /= 10
                 self.agl_cal = 1000
+                print('angle calibaration')
+            
             
         elif self.is_agl and self.agl_cal == 1000:     
             if self.is_parking_path and self.is_parkinglot:
-                agl = self.agl - self.agl_init
-                self.agl_init = self.agl
+                self.start_time = time.time()
                 
+                agl = self.agl.data - self.agl_init
+                # self.agl_init = self.agl.data
+                # print(agl)                
                 self.get_steer()
-                print(self.steer)
+                # print(self.steer)
                 
                 cv2.imshow('roi', self.img_roi)
                 # cv2.imshow('red', self.img_red)
                 # cv2.imshow('blue', self.img_blue)
 
                 cv2.imshow('map', self.img_map)
-                cv2.imwrite(self.save_path + '/roi/' + str(self.iter).zfill(4) + '.png', self.img_roi)
-                cv2.imwrite(self.save_path + '/vector/' + str(self.iter).zfill(4) + '.png', self.img_map)
+                cv2.waitKey(1)
+                cv2.imwrite(self.save_path + '/path_w_car/' + str(self.iter).zfill(4) + '.png', self.img_map)
 
             
                 if  self.iter == 0:
-                    with open(self.save_path + '/angle.csv', 'w', newline='') as f:
+                    with open(self.save_path + '/angle.csv', 'w') as f:
                         wr = csv.writer(f)
-                        wr.writerow([self.agl])
+                        wr.writerow([agl])
                 else:    
-                    with open(self.save_path + '/angle.csv', 'a', newline='') as f:
+                    with open(self.save_path + '/angle.csv', 'a') as f:
                         wr = csv.writer(f)
-                        wr.writerow([self.agl])
+                        wr.writerow([agl])
                     
+                if  self.iter == 0:
+                    with open(self.save_path + '/cte.csv', 'w') as f:
+                        wr = csv.writer(f)
+                        wr.writerow([self.cte])
+                else:    
+                    with open(self.save_path + '/cte.csv', 'a') as f:
+                        wr = csv.writer(f)
+                        wr.writerow([self.cte])
+
                 # print(self.iter)
                 self.iter = self.iter+1
+                self.is_agl = False                
+
             else:
                 print('wait for all receiving')
                 
             if self.steer is not None:
                 self.pub_ctrl_servo.publish(self.steer)
+
+            dt = time.time()-self.start_time
+            print('time :', dt)
+
+            if  self.iter == 0:
+                with open(self.save_path + '/time.csv', 'w') as f:
+                    wr = csv.writer(f)
+                    wr.writerow([dt])
+            else:    
+                with open(self.save_path + '/time.csv', 'a') as f:
+                    wr = csv.writer(f)
+                    wr.writerow([dt])
+
      
         
 if __name__ == '__main__':
-    save_path = '/home/hellobye/catkin_ws/src/caffeine/src/parking/exp1'
+    save_path = '/home/hellobye/catkin_ws/src/caffeine/src/parking/exp6'
     if not os.path.exists(save_path):
         os.makedirs(save_path)
         os.makedirs(save_path+'/roi')

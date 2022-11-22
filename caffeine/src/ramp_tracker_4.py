@@ -7,6 +7,7 @@ from cv_bridge import CvBridge
 import matplotlib.pyplot as plt
 import os
 import csv
+import time
 
 import rospy
 from sensor_msgs.msg import Image
@@ -97,6 +98,11 @@ class Ramptracker:
         self.steer = None
 
         self.count = 0
+        self.iter = 0
+
+
+        self.start_time = time.time()
+
     '''
     image callback
     '''
@@ -481,6 +487,8 @@ class Ramptracker:
     
     def process(self):
         if self.is_front and self.is_left and self.is_right:
+            self.start_time = time.time()
+            
             img_f = self.cur_img_front
             img_l = self.cur_img_left
             img_r = self.cur_img_right
@@ -488,6 +496,7 @@ class Ramptracker:
             img_l = self.side_left(img_l)
             img_r = self.side_right(img_r)
             img_f = self.front(img_f)
+            self.iter += 1
 
             if self.mode == 0:
                 img_r_half = img_b[:-100, :, :]
@@ -512,7 +521,6 @@ class Ramptracker:
             if self.mode == 1:
                 self.steer = 0
                 self.pub_ctrl_motor.publish(0)
-
             
         if self.is_front and self.is_right:
             img_b = self.cur_img_right
@@ -523,6 +531,18 @@ class Ramptracker:
 
         if self.steer is not None:
             self.pub_ctrl_servo.publish(self.steer)
+
+        dt = time.time()-self.start_time
+        print('time :', dt)
+
+        if  self.iter == 0:
+            with open('./time.csv', 'w') as f:
+                wr = csv.writer(f)
+                wr.writerow([dt])
+        else:    
+            with open('./time.csv', 'a') as f:
+                wr = csv.writer(f)
+                wr.writerow([dt])
      
         
 if __name__ == '__main__':
