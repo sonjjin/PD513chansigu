@@ -115,7 +115,7 @@ class SurroundView:
         
         # 자동차 이미지 불러오는 것 인듯
         #self.car = cv2.imread('./car.jpg')
-        self.car = cv2.imread('./car.png', cv2.IMREAD_COLOR)
+        self.car = cv2.imread('/home/hellobye/catkin_ws/src/caffeine/src/car.png', cv2.IMREAD_COLOR)
         self.car = cv2.rotate(self.car, cv2.ROTATE_180)
         # car_final = cv2.resize(self.car, (910, 592), interpolation=cv2.INTER_LINEAR)
  
@@ -141,7 +141,7 @@ class SurroundView:
 
         # 휴리스틱으로 구한거 같은데? 오진다,
         if color == 'green':
-            mask = cv2.inRange(hsv, (25, 60, 50), (86, 255, 255))
+            mask = cv2.inRange(hsv, (30, 60, 50), (86, 255, 255))
         elif color == 'red':
             mask = cv2.inRange(hsv, (115, 100, 50), (130, 255, 255))
         elif color == 'blue':
@@ -470,7 +470,7 @@ class SurroundView:
                             for ii in range(p1.shape[0]):			
                         out_frame = cv2.circle(out_frame, (p1[ii][0][0],p1[ii][0][1]), 10, (255,0,0), 20)
                             '''
-                    cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/x.png', out_frame)
+                    # cv2.imwrite('/home/juntae/catkin_ws/src/caffeine/src/x.png', out_frame)
                     # cv2.imshow('surround view',cv2.resize(out_frame, dsize=(300, 500),interpolation=cv2.INTER_LINEAR))
                     cv2.waitKey(1)
                     #cv2.imwrite('/home/ka/tttt.png',out_frame)

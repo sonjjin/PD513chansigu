@@ -52,7 +52,7 @@ void setup()
   Serial.begin(115200);
   Wire.begin();
   i2cData[0] = 7; // Set the sample rate to 1000Hz - 8kHz/(7+1) = 1000Hz
-  i2cData[1] = 0x02; // Disable FSYNC and set 260 Hz Acc filtering, 256 Hz Gyro filtering, 8 KHz sampling
+  i2cData[1] = 0x03; // Disable FSYNC and set 260 Hz Acc filtering, 256 Hz Gyro filtering, 8 KHz sampling
   //0x00 : 256hz
   //0x01 : 199hz
   //0x02 : 98 hz
