@@ -17,7 +17,7 @@ from std_msgs.msg import Float32
 from std_msgs.msg import Float32MultiArray
 
 class parking:
-    def __init__(self):
+    def __init__(self, save_path):
         self.cv_bridge = CvBridge()
         
         self.sub_parking_path = rospy.Subscriber('/img_w_path', Image, self.img_path_callback)
@@ -31,6 +31,9 @@ class parking:
         
         self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
         self.pub_ctrl_servo = rospy.Publisher('/arduino_ctrl/ctrl_servo', Float32, queue_size=1)
+        
+        self.save_path = save_path
+        self.local_coord = np.zeros([465, 443])
         
         # Path
         self.coord_x = None
@@ -73,6 +76,8 @@ class parking:
         self.img_red = None
         self.img_blue = None
         self.iter = 0
+        self.agl_cal = 0
+        self.agl_init = 0
 
 
     """
@@ -167,6 +172,7 @@ class parking:
             output[imask] = 255
             # mask = cv2.inRange(hsv, (80, 100, 145), (150, 255, 255))
             return output
+        
         imask = mask > 0
         output = np.zeros_like(hsv, np.uint8)
         output[imask] = 255
@@ -187,7 +193,7 @@ class parking:
         # cv2.imwrite('./dddd.png', img_parkinglot)
         img_parkinglot_hsv = self.hsv(img_parkinglot, 'green')
         img_parkinglot_hsv_2 = cv2.cvtColor(img_parkinglot_hsv, cv2.COLOR_GRAY2BGR)
-        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/green_point.png',img_parkinglot_hsv_2)
+        cv2.imwrite(self.save_path + '/green_point.png',img_parkinglot_hsv_2)
         
         # cv2.imshow(img_parkinglot_hsv_2)
         # cv2.waitKey(1)
@@ -229,12 +235,12 @@ class parking:
     """
     def find_property(self):
         img_parkinglot = self.calibration_map()
-        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/parkinglot.png',img_parkinglot)
+        cv2.imwrite(self.save_path + '/parkinglot.png',img_parkinglot)
         img_red = self.hsv(img_parkinglot, 'red')
         img_blue = self.hsv(img_parkinglot, 'blue')
 
-        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_red.png', img_red)
-        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_blue.png', img_blue)
+        cv2.imwrite(self.save_path + '/img_red.png', img_red)
+        cv2.imwrite(self.save_path + '/img_blue.png', img_blue)
 
         self.img_red = img_red
         self.img_blue = img_blue
@@ -269,6 +275,8 @@ class parking:
         Y2_t = 443 - vector[1][1]
         X_t = X2_t - X1_t
         Y_t = Y2_t - Y1_t
+        # print(X1_t, vector[0][1])
+        
         angle = m.atan2(Y_t, X_t)
         if angle < 0:
             angle = -angle
@@ -279,23 +287,23 @@ class parking:
         output["angle"] = angle_deg
         # print(img_parkinglot.shape)
         # img_parkinglot = cv2.cvtColor(img_parkinglot, cv2.COLOR_)
-        img = cv2.line(img_parkinglot, (int(vector[0][0]), int(vector[0][1])), (int(vector[1][0]), int(vector[1][1])),(0,255,0), 4)
-        cv2.imwrite('prop.png', img)
-        cv2.waitKey(1)
+        self.img_map = cv2.line(img_parkinglot, (int(vector[0][0]), int(vector[0][1])), (int(vector[1][0]), int(vector[1][1])),(0,255,0), 4)
+        # cv2.imwrite('prop.png', img)
+        # cv2.waitKey(1)
         return output
     
     def get_roi(self, target):
         cX = target["vehicle_center"][0]
         cY = target["vehicle_center"][1]
         agl_glo = target["angle"]
-        agl = (180 - agl_glo) # turn angle
+        agl = -(180 - agl_glo) # turn angle
         agl = agl_glo
         print(agl)
         
         img_parking_path = self.img_parking_path
         # img_parking_path = self.img_parkinglot
 
-        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path_ori.png', img_parking_path)
+        cv2.imwrite(self.save_path + '/img_parking_path_ori.png', img_parking_path)
 
         img_parking_path = self.hsv(img_parking_path, 'purple')
         img_parking_path = cv2.cvtColor(img_parking_path, cv2.COLOR_BGR2GRAY)
@@ -309,7 +317,7 @@ class parking:
         mtrx = np.float32([[1, 0, dx],
                            [0, 1, dy]])
         img_trans = cv2.warpAffine(img_parking_path, mtrx, (self.map_W, self.map_H))   
-        cv2.imwrite('./img_trans.png', img_trans)
+        # cv2.imwrite('./img_trans.png', img_trans)
         M = cv2.getRotationMatrix2D((self.map_W/2, self.map_H/2), agl, 1.0)
         rotate_img = cv2.warpAffine(img_trans, M, (self.map_W, self.map_H))
         roi_region = 400
@@ -317,7 +325,7 @@ class parking:
         cX_img = self.map_W/2
         cY_img = self.map_H/2
         rotate_img_save = cv2.line(rotate_img, (cX_img,cY_img), (cX_img,cY_img), (255,255,0), 3)
-        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img_save)
+        # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img_save)
 
           
         roi_x_under = int(cX_img-roi_region)
@@ -330,11 +338,11 @@ class parking:
             roi_y_under = 0
         # print(roi_x_under, roi_x_upper)
         # print(roi_y_under, roi_y_upper)
-        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img)
+        # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img)
         roi = rotate_img[roi_y_under:roi_y_upper, roi_x_under:roi_x_upper]
         roi = rotate_img
-        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path.png', img_parking_path)
-        cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/roi.png',roi)
+        # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path.png', img_parking_path)
+        # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/roi.png',roi)
         # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         self.img_roi = roi
         return roi
@@ -373,32 +381,62 @@ class parking:
         #         dy = self.coord_y[i+1] - self.coord_y[i]
         #         # ax =
         # if self.is_accel_x and self.is_accel_y and self.is_agl and self.is_img:
-        if self.is_parking_path and self.is_parkinglot:
-            self.get_steer()
-            print(self.steer)
+        if self.is_agl and self.agl_cal < 100:
+            self.agl_cal = self.agl_cal + 1
+            self.is_agl = False
+            self.agl_init += self.agl
             
-            cv2.imshow('roi', self.img_roi)
-            # cv2.imshow('red', self.img_red)
-            # cv2.imshow('blue', self.img_blue)
-
-            cv2.imshow('map', self.img_map)
-            cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/seq/roi/exp2/'+'img_roi'+ str(self.iter).zfill(4)+'.png', self.img_roi)
-            cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/seq/vector2/exp2/'+'img_rotate'+ str(self.iter).zfill(4)+'.png', self.img_map)
-
-            # print(self.iter)
-            self.iter = self.iter+1
-        else:
-            print('wait for all receiving')
+            if self.agl_cal == 99:
+                self.agl_init /= 100
+                self.agl_cal = 1000
             
-        if self.steer is not None:
-            self.pub_ctrl_servo.publish(self.steer)
+        elif self.is_agl and self.agl_cal == 1000:     
+            if self.is_parking_path and self.is_parkinglot:
+                agl = self.agl - self.agl_init
+                self.agl_init = self.agl
+                
+                self.get_steer()
+                print(self.steer)
+                
+                cv2.imshow('roi', self.img_roi)
+                # cv2.imshow('red', self.img_red)
+                # cv2.imshow('blue', self.img_blue)
+
+                cv2.imshow('map', self.img_map)
+                cv2.imwrite(self.save_path + '/roi/' + str(self.iter).zfill(4) + '.png', self.img_roi)
+                cv2.imwrite(self.save_path + '/vector/' + str(self.iter).zfill(4) + '.png', self.img_map)
+
+            
+                if  self.iter == 0:
+                    with open(self.save_path + '/angle.csv', 'w', newline='') as f:
+                        wr = csv.writer(f)
+                        wr.writerow([self.agl])
+                else:    
+                    with open(self.save_path + '/angle.csv', 'a', newline='') as f:
+                        wr = csv.writer(f)
+                        wr.writerow([self.agl])
+                    
+                # print(self.iter)
+                self.iter = self.iter+1
+            else:
+                print('wait for all receiving')
+                
+            if self.steer is not None:
+                self.pub_ctrl_servo.publish(self.steer)
      
         
 if __name__ == '__main__':
+    save_path = '/home/hellobye/catkin_ws/src/caffeine/src/parking/exp1'
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        os.makedirs(save_path+'/roi')
+        os.makedirs(save_path+'/path_w_car')
+        
     rospy.init_node('ros_parking')
     r = rospy.Rate(10)
-    pc = parking()
+    pc = parking(save_path)
 
+    
     while not rospy.is_shutdown():        
         pc.parking()
         r.sleep()
