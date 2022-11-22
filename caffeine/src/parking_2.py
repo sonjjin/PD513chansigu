@@ -146,7 +146,16 @@ class parking:
             mask = cv2.inRange(hsv, (110, 50, 50), (150, 255, 255))
 
         elif color == 'blue':
-            mask = cv2.inRange(hsv, (10, 80, 100), (43, 255, 255))
+            mask = cv2.inRange(hsv, (10, 100, 140), (53, 255, 255))
+            imask = mask > 0
+            output = np.zeros_like(hsv, np.uint8)
+            output[imask] = 255
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+            output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+            # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (24, 24))
+            # output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+            # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
+            return output
 
         elif color == 'yellow':
             mask = cv2.inRange(hsv, (80, 40, 145), (150, 255, 255))
@@ -191,7 +200,7 @@ class parking:
             y0, x0 = round(y0), round(x0)
             center_point.append([x0, y0])
         center_point.sort()
-        print(center_point) # ll, lu, ru, rl
+        # print(center_point) # ll, lu, ru, rl
         # y = cv2.line(y, (center_point[0][0], center_point[0][1]), (center_point[0][0], center_point[0][1]),(0,0,255),5)
         comp = 9
         comp2 = 6
@@ -245,7 +254,8 @@ class parking:
             # img = cv2.line(img, (x0, y0), (x0, y0),(0,0,255),5)
         
         if len(regions_blue) == 1:
-            y0, x0 = regions_blue[0].centroid
+            # print(regions_blue[0].centroid[0])
+            y0, x0 = regions_blue[0].centroid[0], regions_blue[0].centroid[1]
             y0, x0 = round(y0), round(x0)
             vector.append([x0, y0])
             # img = cv2.line(img, (x0, y0), (x0, y0),(255,0,0),5) 
@@ -267,7 +277,6 @@ class parking:
         
         output["vehicle_center"] = [cX, cY]
         output["angle"] = angle_deg
-        
         # print(img_parkinglot.shape)
         # img_parkinglot = cv2.cvtColor(img_parkinglot, cv2.COLOR_)
         img = cv2.line(img_parkinglot, (int(vector[0][0]), int(vector[0][1])), (int(vector[1][0]), int(vector[1][1])),(0,255,0), 4)
@@ -279,7 +288,9 @@ class parking:
         cX = target["vehicle_center"][0]
         cY = target["vehicle_center"][1]
         agl_glo = target["angle"]
-        agl = -(180 - agl_glo) # turn angle
+        agl = (180 - agl_glo) # turn angle
+        agl = agl_glo
+        print(agl)
         
         img_parking_path = self.img_parking_path
         # img_parking_path = self.img_parkinglot
@@ -301,7 +312,7 @@ class parking:
         cv2.imwrite('./img_trans.png', img_trans)
         M = cv2.getRotationMatrix2D((self.map_W/2, self.map_H/2), agl, 1.0)
         rotate_img = cv2.warpAffine(img_trans, M, (self.map_W, self.map_H))
-        roi_region = 100
+        roi_region = 400
         # print(cX, cY)
         cX_img = self.map_W/2
         cY_img = self.map_H/2
@@ -309,10 +320,10 @@ class parking:
         cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img_save)
 
           
-        roi_x_under = int(cX-roi_region)
-        roi_x_upper = int(cX)
-        roi_y_under = int(cY-roi_region/2)
-        roi_y_upper = int(cY+roi_region/2)
+        roi_x_under = int(cX_img-roi_region)
+        roi_x_upper = int(cX_img)
+        roi_y_under = int(cY_img-roi_region/2)
+        roi_y_upper = int(cY_img+roi_region/2)
         if roi_x_under < 0:
             roi_x_under = 0
         if roi_y_under < 0:
@@ -321,7 +332,7 @@ class parking:
         # print(roi_y_under, roi_y_upper)
         cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img)
         roi = rotate_img[roi_y_under:roi_y_upper, roi_x_under:roi_x_upper]
-        # roi = rotate_img
+        roi = rotate_img
         cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path.png', img_parking_path)
         cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/roi.png',roi)
         # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
@@ -334,7 +345,7 @@ class parking:
         target = self.find_property()
         roi = self.get_roi(target)
         
-        gain_cte = 0.3
+        gain_cte = 0.8
         gain_curv = -1
         look_a_head = roi.shape[0]*0.2
         
@@ -371,10 +382,10 @@ class parking:
             # cv2.imshow('blue', self.img_blue)
 
             cv2.imshow('map', self.img_map)
-            cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/seq/roi/'+'img_roi'+ str(self.iter).zfill(4)+'.png', self.img_roi)
-            cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/seq/vector2/'+'img_rotate'+ str(self.iter).zfill(4)+'.png', self.img_map)
+            cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/seq/roi/exp2/'+'img_roi'+ str(self.iter).zfill(4)+'.png', self.img_roi)
+            cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/seq/vector2/exp2/'+'img_rotate'+ str(self.iter).zfill(4)+'.png', self.img_map)
 
-            print(self.iter)
+            # print(self.iter)
             self.iter = self.iter+1
         else:
             print('wait for all receiving')
