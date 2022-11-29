@@ -10,7 +10,6 @@ from skimage.measure import label, regionprops
 from utils/callback import *
 import time
 
-
 import matplotlib.pyplot as plt
 import os
 import csv
@@ -24,17 +23,26 @@ class parking:
     def __init__(self, save_path):
         self.cv_bridge = CvBridge()
         
-        self.sub_parking_path = rospy.Subscriber('/img_w_path', Image, self.img_path_callback)
-        self.sub_parkinglot = rospy.Subscriber('/camera/image_raw', Image, self.img_parking_callback)
-        self.sub_coord_x = rospy.Subscriber('/coord_x', Float32MultiArray, self.coord_x_callback) # cm
-        self.sub_coord_y = rospy.Subscriber('/coord_y', Float32MultiArray, self.coord_y_callback) # cm
-        self.sub_coord_ang = rospy.Subscriber('/coord_ang', Float32MultiArray, self.coord_ang_callback)
-        self.sub_accX = rospy.Subscriber('/arduino_imu/accX', Float32, self.accel_x_callback) # cm/s
-        self.sub_accY = rospy.Subscriber('/arduino_imu/accY', Float32, self.accel_y_callback) # cm/s
-        self.sub_aglZ = rospy.Subscriber('/arduino_imu/aglZ', Float32, self.agl_callback) # degree sum
+        self.sub_parking_path = rospy.Subscriber('/img_w_path', Image, self.callback_img_path) # MATLAB
+        self.sub_parkinglot = rospy.Subscriber('/camera/image_raw', Image, self.callback_img_parking) 
+        self.sub_turn_dis = rospy.Subscriber('/turn_dis', Float32, self.callback_turn_dis)
+
+        self.sub_accX = rospy.Subscriber('/arduino_imu/accX', Float32, self.callback_accel_x) # cm/s
+        self.sub_accY = rospy.Subscriber('/arduino_imu/accY', Float32, self.callback_accel_y) # cm/s
+        self.sub_aglZ = rospy.Subscriber('/arduino_imu/aglZ', Float32, self.callback_agl) # degree sum
+        
+        
+        self.sub_img_front = rospy.Subscriber('/front_cam/image_raw', Image, self.callback_img_front)
+        self.sub_img_left = rospy.Subscriber('/left_cam/image_raw', Image, self.callback_img_left)
+        self.sub_img_right = rospy.Subscriber('/right_cam/image_raw', Image, self.callback_img_right)
+        self.sub_img_back = rospy.Subscriber('/rear_cam/image_raw', Image, self.callback_img_back)
+        self.sub_pv_distance = rospy.Subscriber('/vehicle_dis', Float32, self.callback_pv_dis)
+        
         
         self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
         self.pub_ctrl_servo = rospy.Publisher('/arduino_ctrl/ctrl_servo', Float32, queue_size=1)
+        self.pub_vehicle_center = rospy.Publisher('/vehicle_point', Float32MultiArray, queue_size=1)
+        
         
         self.save_path = save_path
         self.local_coord = np.zeros([465, 443])
@@ -57,6 +65,12 @@ class parking:
         self.is_accel_y = False
         self.is_agl = False
         
+        self.pv_dis = None
+        self.is_pv_dis = False
+        
+        self.turn_dis = None
+        self.is_turn_dis = False
+        
         # imgs
         self.img_parking_path = None
         self.is_parking_path = False
@@ -66,13 +80,69 @@ class parking:
 
         self.is_red = False
         self.is_blue = False
+        
+        self.is_front = False
+        self.is_left = False
+        self.is_right = False
+        self.is_back = False
+        
+        self.cur_img_front = None
+        self.cur_img_left = None
+        self.cur_img_right = None
+        self.cur_img_back = None
+        
 
+        self.forward_src = np.float32([
+                    (125, 180),
+                    (0, 440),
+                    (500, 180),
+                    (640, 440)
+                ])
+
+        self.left_src = np.float32([    
+                    (100, 45),  
+                    (5,415),    
+                    (510, 45),  
+                    (620, 410)  
+                ])  
+    
+        self.right_src = np.float32([
+                    (100, 45),
+                    (5,415),
+                    (510, 45),
+                    (620, 410)
+                ])
+
+        self.forward_dst = np.float32([
+                    (150, 90),
+                    (170, 440),
+                    (560, 90),
+                    (470, 445)
+                ])    
+
+        self.left_dst = np.float32([
+                    (140, 60),
+                    (140, 460),
+                    (480, 65),
+                    (480, 445)
+                ])
+                
+        self.right_dst = np.float32([
+                    (140, 60),
+                    (140, 450),
+                    (480, 65),
+                    (480, 460)
+                ])
+
+        # image
         self.img_map = None
         self.map_W = 465
         self.map_H = 443
         self.m_per_pixel = 0.00252
         
+        # control
         self.steer = None
+        self.speed = None
 
         self.img_path = None
         self.img_vector = None
@@ -89,49 +159,126 @@ class parking:
     """
     callback functions
     """
-    def coord_x_callback(self, data):
+    def callback_coord_x(self, data):
         if not self.is_coord_x:
             self.coord_x = data
             self.is_coord_x = True
         
-    def coord_y_callback(self, data):
+    def callback_coord_y(self, data):
         if not self.is_coord_y:
             self.coord_y = data
             self.is_coord_y = True
         
-    def coord_ang_callback(self, data):
+    def callback_coord_ang(self, data):
         if not self.is_coord_ang:
             self.coord_ang = data
             self.is_coord_ang = True
     
-    def img_parking_callback(self, data):
+    def callback_img_parking(self, data):
         if not self.is_parkinglot:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
             self.img_parkinglot = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             # print("front",  self.cur_img_front.dtype) 
             self.is_parkinglot = True
     
-    def img_path_callback(self, data):
+    def callback_img_path(self, data):
         if not self.is_parking_path:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
             self.img_parking_path = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             # print("front",  self.cur_img_front.dtype) 
             self.is_parking_path = True
 
-    def accel_x_callback(self, data):
+    def callback_accel_x(self, data):
         if not self.is_accel_x:
             self.accel_x = data
             self.is_accel_x = True
 
-    def accel_y_callback(self, data):
+    def callback_accel_y(self, data):
         if not self.is_accel_x:
             self.accel_y = data
             self.is_accel_y = True
 
-    def agl_callback(self, data):
+    def callback_agl(self, data):
         if not self.is_agl:
             self.agl = data
             self.is_agl = True
+            
+    def callback_img_front(self, data):
+        img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
+        self.cur_img_front = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # print("front",  self.cur_img_front.dtype) 
+        self.is_front = True
+
+    def callback_img_left(self, data):
+        img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
+        self.cur_img_left = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
+        # print("left", self.cur_img_left.dtype) 
+        self.is_left = True
+    
+    def callback_img_right(self, data):
+        img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
+        self.cur_img_right = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
+        # print("right", self.cur_img_right.dtype) 
+        self.is_right = True
+    
+    def callback_img_back(self, data):
+        img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
+        self.cur_img_back = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
+        # print("rear", self.cur_img_back.dtype) 
+        self.is_back = True
+        
+    def callback_pv_dis(self, data):
+        if not self.is_pv_dis:
+            self.pv_dis = data.data
+            self.is_pv_dis = True
+            
+    def callback_turn_dis(self, data):
+        if not self.is_turn_dis:
+            self.turn_dis = data.data
+            self.is_pv_dis = True
+            
+        
+    """
+    Image warping
+    """
+    
+    def front(self, img):
+        IMAGE_H, IMAGE_W, _ = img.shape
+
+        #print(img.shape)
+        #img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
+
+        src = self.forward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
+        dst = self.forward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
+        #src = np.float32([[210,115], [210,180], [150,120], [150,175]])
+        #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
+        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+
+        IMAGE_H, IMAGE_W, _ = img.shape
+
+        warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
+        output = warped_img[90:,:-10]
+        return output#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
+
+    def rear(self, img):
+        IMAGE_H, IMAGE_W, _ = img.shape
+    
+        #img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
+        src = self.backward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
+        dst = self.backward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
+        #src = np.float32([[210,115], [210,180], [150,120], [150,175]])
+        #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
+        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+    
+        IMAGE_H, IMAGE_W, _ = img.shape
+    
+        warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
+        output = warped_img[90:,:]
+        output = cv2.rotate(output, cv2.ROTATE_180)
+        return output#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
+               
     
     """
     hsv
@@ -168,7 +315,6 @@ class parking:
             # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
             return output
 
-
         elif color == 'blue':
             mask = cv2.inRange(hsv, (0, 150, 100), (20, 255, 255))
             imask = mask > 0
@@ -186,6 +332,14 @@ class parking:
 
         elif color == 'yellow':
             mask = cv2.inRange(hsv, (80, 40, 145), (150, 255, 255))
+            imask = mask > 0
+            temp = np.zeros_like(hsv, np.uint8)
+            temp[imask] = 255
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10,10))
+            clean = cv2.morphologyEx(temp[:,:,0], cv2.MORPH_OPEN, kernel)
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15,15))
+            output = cv2.morphologyEx(clean, cv2.MORPH_CLOSE, kernel)
+            return output
 
         elif color == 'purple':
             mask = cv2.inRange(hsv, (130, 170, 130), (180, 255, 150))
@@ -194,23 +348,9 @@ class parking:
             output[imask] = 255
             # mask = cv2.inRange(hsv, (80, 100, 145), (150, 255, 255))
             return output
-        
-        imask = mask > 0
-        output = np.zeros_like(hsv, np.uint8)
-        output[imask] = 255
-        output = cv2.cvtColor(output, cv2.COLOR_RGB2GRAY)
-        # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (1, 1))
-        # output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
-        # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
-        # output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
-
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (10, 10))
-        output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
-        # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
-        return output
 
     """
-    calibarion mapping
+    calibration mapping
     """
     def calibration_map(self):
         img_parkinglot = self.img_parkinglot
@@ -246,7 +386,6 @@ class parking:
             (x_ru, y_ll)])
         M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
         # Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
-
 
         warped_img = cv2.warpPerspective(img_parkinglot, M, (self.map_W, self.map_H))
         warped_img = cv2.flip(warped_img, 0)
@@ -311,11 +450,14 @@ class parking:
         
         output["vehicle_center"] = [cX, cY]
         output["angle"] = angle_deg
+        self.pub_vehicle_center.publish(output["vehicle_center"])
+        
         # print(img_parkinglot.shape)
         # img_parkinglot = cv2.cvtColor(img_parkinglot, cv2.COLOR_)
         self.img_map = cv2.line(img_parkinglot, (int(vector[0][0]), int(vector[0][1])), (int(vector[1][0]), int(vector[1][1])),(0,255,0), 4)
         # cv2.imwrite('prop.png', img)
         # cv2.waitKey(1)
+        
         return output
     
     def get_roi(self, target):
@@ -390,53 +532,71 @@ class parking:
         self.img_roi = roi
         return roi
     
-    
     def get_steer(self):
-        self.calibration_map()
-        target = self.find_property()
-        roi = self.get_roi(target)
-        
-        gain_cte = 0.3
-        gain_curv = -1
-        cte = 0
-        # look_a_head = roi.shape[0]/2 * 0.9
-        look_a_head = roi.shape[0] * 0.3
-        ref = roi.shape[1]/2
-        
-        path_idx = np.nonzero(roi)
-        path_fit = np.polyfit(path_idx[0], path_idx[1], 2)
-        # path_fit = np.polyfit(path_idx[0], path_idx[1], 1)
+        try:
+            self.calibration_map()
+            try:
+                target = self.find_property()
+                roi = self.get_roi(target)
+            
+                gain_cte = 0.3
+                gain_curv = -1
+                cte = 0
+                # look_a_head = roi.shape[0]/2 * 0.9
+                look_a_head = roi.shape[0] * 0.3
+                ref = roi.shape[1]/2
+                
+                path_idx = np.nonzero(roi)
+                path_fit = np.polyfit(path_idx[0], path_idx[1], 2)
+                # path_fit = np.polyfit(path_idx[0], path_idx[1], 1)
 
-        # print(path_fit)
-        # print(path_fitx)
-        # look_a_head = 70
+                # print(path_fit)
+                # print(path_fitx)
+                # look_a_head = 70
 
-        # print(path_fit)
-        ploty = np.linspace(0, roi.shape[0]-1, roi.shape[0]) # y value
-        path_fitx = path_fit[0]*ploty**2+path_fit[1]*ploty+path_fit[2]
-        # path_fitx = path_fit[0]*ploty+path_fit[1]
+                # print(path_fit)
+                ploty = np.linspace(0, roi.shape[0]-1, roi.shape[0]) # y value
+                path_fitx = path_fit[0]*ploty**2+path_fit[1]*ploty+path_fit[2]
+                # path_fitx = path_fit[0]*ploty+path_fit[1]
 
-        roi = cv2.cvtColor(roi, cv2.COLOR_GRAY2BGR)
-        for i in range(len(ploty)):
-            roi = cv2.line(roi, (int(round(path_fitx[i])), int(round(ploty[i]))), (int(round(path_fitx[i])), int(round(ploty[i]))), (255,0,0), 2)
-        roi = cv2.line(roi, (int(round(roi.shape[1]/2)), int(round(look_a_head))), (int(round(roi.shape[1]/2)), int(round(look_a_head))), (0,255,0), 10)
-        cv2.imwrite(self.save_path + '/roi/' + str(self.iter).zfill(4) + '.png', roi)
-        
+                roi = cv2.cvtColor(roi, cv2.COLOR_GRAY2BGR)
+                for i in range(len(ploty)):
+                    roi = cv2.line(roi, (int(round(path_fitx[i])), int(round(ploty[i]))), (int(round(path_fitx[i])), int(round(ploty[i]))), (255,0,0), 2)
+                roi = cv2.line(roi, (int(round(roi.shape[1]/2)), int(round(look_a_head))), (int(round(roi.shape[1]/2)), int(round(look_a_head))), (0,255,0), 10)
+                cv2.imwrite(self.save_path + '/roi/' + str(self.iter).zfill(4) + '.png', roi)
 
 
-        front_lane = path_fit[0]*look_a_head**2 + path_fit[1]*look_a_head + path_fit[2]
-        # front_lane = path_fit[0]*look_a_head + path_fit[1]
+                front_lane = path_fit[0]*look_a_head**2 + path_fit[1]*look_a_head + path_fit[2]
+                # front_lane = path_fit[0]*look_a_head + path_fit[1]
 
-        roi = cv2.line(roi, (int(round(front_lane)), int(round(look_a_head))), (int(round(front_lane)), int(round(look_a_head))), (0,255,120), 10)
+                roi = cv2.line(roi, (int(round(front_lane)), int(round(look_a_head))), (int(round(front_lane)), int(round(look_a_head))), (0,255,120), 10)
 
-        cv2.imshow('dddd', roi)
-        front_curverad = ((1 + (2*path_fit[0]*look_a_head + path_fit[1])**2)**1.5) / (2*path_fit[0]) * self.m_per_pixel
-        cte = ref - front_lane
-        steer = gain_cte * cte + gain_curv / front_curverad
-        steer = max(min(steer, 20.0), -20.0)
-        self.steer = steer
-        self.cte = cte
-        
+                cv2.imshow('dddd', roi)
+                front_curverad = ((1 + (2*path_fit[0]*look_a_head + path_fit[1])**2)**1.5) / (2*path_fit[0]) * self.m_per_pixel
+                cte = ref - front_lane
+                steer = gain_cte * cte + gain_curv / front_curverad
+                steer = max(min(steer, 20.0), -20.0)
+                self.steer = steer
+                self.cte = cte
+            except:
+                target = [None, None]
+                self.pub_vehicle_center.publish(target)
+        except:
+            print('calibration error')
+            
+    
+    
+    def get_speed(self):
+        try:
+            if self.is_turn_dis and self.turn_dis is not None:
+                if self.turn_dis < 0.1:
+                    self.speed = -100
+            
+            if self.is_pv_dis and self.pv_dis < 0.1:
+                self.speed = 0
+
+        except:
+            self.speed = None
         
 
     def parking(self):
@@ -466,6 +626,7 @@ class parking:
                 # self.agl_init = self.agl.data
                 # print(agl)                
                 self.get_steer()
+                self.get_speed()
                 # print(self.steer)
                 
                 cv2.imshow('roi', self.img_roi)
@@ -505,6 +666,10 @@ class parking:
             if self.steer is not None:
                 self.pub_ctrl_servo.publish(self.steer)
 
+            if self.speed is not None:
+                self.pub_ctrl_motor.publish(self.speed)
+                
+                
             dt = time.time()-self.start_time
             print('time :', dt)
 
@@ -520,7 +685,7 @@ class parking:
      
         
 if __name__ == '__main__':
-    save_path = '/home/hellobye/catkin_ws/src/caffeine/src/parking/exp6'
+    save_path = '/home/hellobye/exp6'
     if not os.path.exists(save_path):
         os.makedirs(save_path)
         os.makedirs(save_path+'/roi')
