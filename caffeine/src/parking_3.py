@@ -633,6 +633,7 @@ class parking:
                 
                 print('goal distance: {:.3}'.format(self.pv_dis))
                 print('turn point distance: {:.3}'.format(self.turn_dis))
+
     
                 print("-----------------------")
                 
