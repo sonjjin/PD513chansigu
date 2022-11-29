@@ -592,7 +592,7 @@ class parking:
                 if self.turn_dis < 0.1:
                     self.speed = -100
             
-            if self.is_pv_dis and self.pv_dis < 0.1:
+            elif self.is_pv_dis and self.pv_dis < 0.1:
                 self.speed = 0
 
         except:
@@ -628,6 +628,14 @@ class parking:
                 self.get_steer()
                 self.get_speed()
                 # print(self.steer)
+                
+                print("-----------------------")
+                
+                print('goal distance: {:.3}'.format(self.pv_dis))
+                print('turn point distance: {:.3}'.format(self.turn_dis))
+    
+                print("-----------------------")
+                
                 
                 cv2.imshow('roi', self.img_roi)
                 # cv2.imshow('red', self.img_red)
