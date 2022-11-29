@@ -7,7 +7,6 @@ import cv2
 import math as m
 from cv_bridge import CvBridge
 from skimage.measure import label, regionprops
-from utils/callback import *
 import time
 
 

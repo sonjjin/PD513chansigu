@@ -30,6 +30,9 @@ class find_distance():
         self.is_parkinglot = False
         self.is_turnpoint = False
         self.is_vspeed = False
+
+        self.pub_turndis = None
+        self.pub_dis = None
         
     def callback_vehicle(self, data):
         if not self.is_vehicle:
@@ -55,28 +58,46 @@ class find_distance():
     
     def distance(self):
         try:
+            # print(self.turnpoint)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                )
             if self.is_vehicle and self.is_parkinglot:
-                dis = m.sqrt((self.vehicle_pose[0] - self.parkinglot_pose[0])**2 + (self.vehicle_pose[1] - self.parkinglot_pose[1])**2)
-                self.pub_vehivle_dis.publish(dis)
-                
+                dis = m.sqrt((self.vehicle_pose[0] - self.parkinglot_pose[0])**2 + (self.vehicle_pose[1] - (465 - self.parkinglot_pose[1]))**2)
+                # print(self.vehicle_pose)
+                self.pub_dis = dis
+                turndis = None
+                self.pub_turndis = turndis
                 self.is_vehicle = False
-                self.is_parkinglot = False
+                # self.is_parkinglot = False
             
-
-            if self.is_turnpoint and self.turnpoint[2][0] == 14:
-                turn_dis = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0][0])**2 + (self.vehicle_pose[1] - self.turnpoint[0][1])**2)
-                if self.vspeed < 0:
-                    turn_dis = m.sqrt((self.vehicle_pose[0] - self.turnpoint[1][0])**2 + (self.vehicle_pose[1] - self.turnpoint[1][1])**2)
-                self.pub_turn_dis.publish(turn_dis)
+            # print(self.turnpoint)
+            if self.is_turnpoint and self.turnpoint[2] == 14:
+                turndis = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0])**2 + ((465 - self.vehicle_pose[1]) - self.turnpoint[3])**2)
+                # print('b')
                 
-            elif self.is_turnpoint and self.turnpoint[2][0] // 10 == 2:
-                turn_dis = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0][0])**2 + (self.vehicle_pose[1] - self.turnpoint[0][1])**2)
-                self.pub_turn_dis.publish(turn_dis)
+                if self.vspeed < 0:
+                    turndis = m.sqrt((self.vehicle_pose[0] - self.turnpoint[1])**2 + ((465 - self.vehicle_pose[1]) - self.turnpoint[4])**2)
+                # self.pub_turn_dis.publish(turn_dis)
+                self.pub_turndis = turndis
+
+                
+            elif self.is_turnpoint and self.turnpoint[2] // 10 == 2:
+                # print('c')
+                
+                turndis = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0])**2 + ((465 - self.vehicle_pose[1]) - self.turnpoint[3])**2)
+                # self.pub_turn_dis.publish(turn_dis)
+                self.pub_turndis = turndis
+
                 
             else:
-                turn_dis = None
-                self.pub_turn_dis.publish(turn_dis)
-            
+                # print('d')
+
+                turndis = -1
+                self.pub_turndis = turndis
+
+
+            self.pub_vehivle_dis.publish(self.pub_dis)
+            self.pub_turn_dis.publish(self.pub_turndis) 
+            print(self.pub_dis, self.pub_turndis)
+
         except:
             print('wait')
 

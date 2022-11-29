@@ -7,7 +7,6 @@ import cv2
 import math as m
 from cv_bridge import CvBridge
 from skimage.measure import label, regionprops
-from utils/callback import *
 import time
 
 import matplotlib.pyplot as plt
@@ -159,20 +158,20 @@ class parking:
     """
     callback functions
     """
-    def callback_coord_x(self, data):
-        if not self.is_coord_x:
-            self.coord_x = data
-            self.is_coord_x = True
+    # def callback_coord_x(self, data):
+    #     if not self.is_coord_x:
+    #         self.coord_x = data
+    #         self.is_coord_x = True
         
-    def callback_coord_y(self, data):
-        if not self.is_coord_y:
-            self.coord_y = data
-            self.is_coord_y = True
+    # def callback_coord_y(self, data):
+    #     if not self.is_coord_y:
+    #         self.coord_y = data
+    #         self.is_coord_y = True
         
-    def callback_coord_ang(self, data):
-        if not self.is_coord_ang:
-            self.coord_ang = data
-            self.is_coord_ang = True
+    # def callback_coord_ang(self, data):
+    #     if not self.is_coord_ang:
+    #         self.coord_ang = data
+    #         self.is_coord_ang = True
     
     def callback_img_parking(self, data):
         if not self.is_parkinglot:
@@ -235,7 +234,7 @@ class parking:
     def callback_turn_dis(self, data):
         if not self.is_turn_dis:
             self.turn_dis = data.data
-            self.is_pv_dis = True
+            self.is_trun_dis = True
             
         
     """
@@ -450,7 +449,9 @@ class parking:
         
         output["vehicle_center"] = [cX, cY]
         output["angle"] = angle_deg
-        self.pub_vehicle_center.publish(output["vehicle_center"])
+        output_vc = Float32MultiArray()
+        output_vc.data = output["vehicle_center"]
+        self.pub_vehicle_center.publish(output_vc)
         
         # print(img_parkinglot.shape)
         # img_parkinglot = cv2.cvtColor(img_parkinglot, cv2.COLOR_)
@@ -533,70 +534,75 @@ class parking:
         return roi
     
     def get_steer(self):
-        try:
-            self.calibration_map()
-            try:
-                target = self.find_property()
-                roi = self.get_roi(target)
-            
-                gain_cte = 0.3
-                gain_curv = -1
-                cte = 0
-                # look_a_head = roi.shape[0]/2 * 0.9
-                look_a_head = roi.shape[0] * 0.3
-                ref = roi.shape[1]/2
-                
-                path_idx = np.nonzero(roi)
-                path_fit = np.polyfit(path_idx[0], path_idx[1], 2)
-                # path_fit = np.polyfit(path_idx[0], path_idx[1], 1)
+        # try:
+        self.calibration_map()
+            # try:
+        target = self.find_property()
+        roi = self.get_roi(target)
+    
+        gain_cte = 0.3
+        gain_curv = -1
+        cte = 0
+        # look_a_head = roi.shape[0]/2 * 0.9
+        look_a_head = roi.shape[0] * 0.3
+        ref = roi.shape[1]/2
+        
+        path_idx = np.nonzero(roi)
+        path_fit = np.polyfit(path_idx[0], path_idx[1], 2)
+        # path_fit = np.polyfit(path_idx[0], path_idx[1], 1)
 
-                # print(path_fit)
-                # print(path_fitx)
-                # look_a_head = 70
+        # print(path_fit)
+        # print(path_fitx)
+        # look_a_head = 70
 
-                # print(path_fit)
-                ploty = np.linspace(0, roi.shape[0]-1, roi.shape[0]) # y value
-                path_fitx = path_fit[0]*ploty**2+path_fit[1]*ploty+path_fit[2]
-                # path_fitx = path_fit[0]*ploty+path_fit[1]
+        # print(path_fit)
+        ploty = np.linspace(0, roi.shape[0]-1, roi.shape[0]) # y value
+        path_fitx = path_fit[0]*ploty**2+path_fit[1]*ploty+path_fit[2]
+        # path_fitx = path_fit[0]*ploty+path_fit[1]
 
-                roi = cv2.cvtColor(roi, cv2.COLOR_GRAY2BGR)
-                for i in range(len(ploty)):
-                    roi = cv2.line(roi, (int(round(path_fitx[i])), int(round(ploty[i]))), (int(round(path_fitx[i])), int(round(ploty[i]))), (255,0,0), 2)
-                roi = cv2.line(roi, (int(round(roi.shape[1]/2)), int(round(look_a_head))), (int(round(roi.shape[1]/2)), int(round(look_a_head))), (0,255,0), 10)
-                cv2.imwrite(self.save_path + '/roi/' + str(self.iter).zfill(4) + '.png', roi)
+        roi = cv2.cvtColor(roi, cv2.COLOR_GRAY2BGR)
+        for i in range(len(ploty)):
+            roi = cv2.line(roi, (int(round(path_fitx[i])), int(round(ploty[i]))), (int(round(path_fitx[i])), int(round(ploty[i]))), (255,0,0), 2)
+        roi = cv2.line(roi, (int(round(roi.shape[1]/2)), int(round(look_a_head))), (int(round(roi.shape[1]/2)), int(round(look_a_head))), (0,255,0), 10)
+        cv2.imwrite(self.save_path + '/roi/' + str(self.iter).zfill(4) + '.png', roi)
 
 
-                front_lane = path_fit[0]*look_a_head**2 + path_fit[1]*look_a_head + path_fit[2]
-                # front_lane = path_fit[0]*look_a_head + path_fit[1]
+        front_lane = path_fit[0]*look_a_head**2 + path_fit[1]*look_a_head + path_fit[2]
+        # front_lane = path_fit[0]*look_a_head + path_fit[1]
 
-                roi = cv2.line(roi, (int(round(front_lane)), int(round(look_a_head))), (int(round(front_lane)), int(round(look_a_head))), (0,255,120), 10)
+        roi = cv2.line(roi, (int(round(front_lane)), int(round(look_a_head))), (int(round(front_lane)), int(round(look_a_head))), (0,255,120), 10)
 
-                cv2.imshow('dddd', roi)
-                front_curverad = ((1 + (2*path_fit[0]*look_a_head + path_fit[1])**2)**1.5) / (2*path_fit[0]) * self.m_per_pixel
-                cte = ref - front_lane
-                steer = gain_cte * cte + gain_curv / front_curverad
-                steer = max(min(steer, 20.0), -20.0)
-                self.steer = steer
-                self.cte = cte
-            except:
-                target = [None, None]
-                self.pub_vehicle_center.publish(target)
-        except:
-            print('calibration error')
+        cv2.imshow('dddd', roi)
+        front_curverad = ((1 + (2*path_fit[0]*look_a_head + path_fit[1])**2)**1.5) / (2*path_fit[0]) * self.m_per_pixel
+        cte = ref - front_lane
+        steer = gain_cte * cte + gain_curv / front_curverad
+        steer = max(min(steer, 20.0), -20.0)
+        self.steer = steer
+        self.cte = cte
+        #     except:
+        #         target = [None, None]
+        #         self.pub_vehicle_center.publish(target)
+        # except:
+        #     print('calibration error')
             
     
     
     def get_speed(self):
         try:
-            if self.is_turn_dis and self.turn_dis is not None:
-                if self.turn_dis < 0.1:
+            if self.is_turn_dis and self.turn_dis != -1:
+                if self.turn_dis < 77:
                     self.speed = -100
-            
-            elif self.is_pv_dis and self.pv_dis < 0.1:
+                    print('speed change_turn')
+            elif self.is_pv_dis and self.pv_dis < 77:
                 self.speed = 0
+                print('speed change_pv')
+            self.is_turn_dis = False
+            self.is_pv_dis = False
 
         except:
-            self.speed = None
+            self.speed = 150
+            self.is_turn_dis = False
+            self.is_pv_dis = False
         
 
     def parking(self):
@@ -647,23 +653,23 @@ class parking:
                 cv2.imwrite(self.save_path + '/path_w_car/' + str(self.iter).zfill(4) + '.png', self.img_map)
 
             
-                if  self.iter == 0:
-                    with open(self.save_path + '/angle.csv', 'w') as f:
-                        wr = csv.writer(f)
-                        wr.writerow([agl])
-                else:    
-                    with open(self.save_path + '/angle.csv', 'a') as f:
-                        wr = csv.writer(f)
-                        wr.writerow([agl])
+                # if  self.iter == 0:
+                #     with open(self.save_path + '/angle.csv', 'w') as f:
+                #         wr = csv.writer(f)
+                #         wr.writerow([agl])
+                # else:    
+                #     with open(self.save_path + '/angle.csv', 'a') as f:
+                #         wr = csv.writer(f)
+                #         wr.writerow([agl])
                     
-                if  self.iter == 0:
-                    with open(self.save_path + '/cte.csv', 'w') as f:
-                        wr = csv.writer(f)
-                        wr.writerow([self.cte])
-                else:    
-                    with open(self.save_path + '/cte.csv', 'a') as f:
-                        wr = csv.writer(f)
-                        wr.writerow([self.cte])
+                # if  self.iter == 0:
+                #     with open(self.save_path + '/cte.csv', 'w') as f:
+                #         wr = csv.writer(f)
+                #         wr.writerow([self.cte])
+                # else:    
+                #     with open(self.save_path + '/cte.csv', 'a') as f:
+                #         wr = csv.writer(f)
+                #         wr.writerow([self.cte])
 
                 # print(self.iter)
                 self.iter = self.iter+1
@@ -675,21 +681,22 @@ class parking:
             if self.steer is not None:
                 self.pub_ctrl_servo.publish(self.steer)
 
+            print(self.speed)
             if self.speed is not None:
                 self.pub_ctrl_motor.publish(self.speed)
                 
                 
-            dt = time.time()-self.start_time
-            print('time :', dt)
+            # dt = time.time()-self.start_time
+            # print('time :', dt)
 
-            if  self.iter == 0:
-                with open(self.save_path + '/time.csv', 'w') as f:
-                    wr = csv.writer(f)
-                    wr.writerow([dt])
-            else:    
-                with open(self.save_path + '/time.csv', 'a') as f:
-                    wr = csv.writer(f)
-                    wr.writerow([dt])
+            # if  self.iter == 0:
+            #     with open(self.save_path + '/time.csv', 'w') as f:
+            #         wr = csv.writer(f)
+            #         wr.writerow([dt])
+            # else:    
+            #     with open(self.save_path + '/time.csv', 'a') as f:
+            #         wr = csv.writer(f)
+            #         wr.writerow([dt])
 
      
         
