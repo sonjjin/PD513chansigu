@@ -22,6 +22,9 @@ class Ramptracker:
         self.img_right_sub = rospy.Subscriber('/right_cam/image_raw', Image, self.img_right_callback)
         self.img_back_sub = rospy.Subscriber('/rear_cam/image_raw', Image, self.img_back_callback)
 
+        self.sub_cur_speed = rospy.Subscriber('/arduino_ctrl/ctrl_motor', Float32, self.callback_speed)
+        self.sub_cur_steer = rospy.Subscriber('/arduino_ctrl/ctrl_servo', Float32, self.callback_steer)
+
         self.pub_ctrl_servo = rospy.Publisher('/arduino_ctrl/ctrl_servo', Float32, queue_size=1)
         self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
 
@@ -35,6 +38,10 @@ class Ramptracker:
         self.cur_img_right = None
         self.cur_img_back = None
 
+        self.is_cur_speed = False
+        self.cur_speed = None
+        self.is_cur_steer = False
+        self.cur_steer = None
         self.turn_right = True # turn right: true, turn left: false
         self.mode = 0 # 0: ramp tracking, 1: parking
         ## 테스트용 ##
@@ -86,6 +93,7 @@ class Ramptracker:
                     (480, 460)
                 ])
     
+        self.control_state = 0
 
     # lane check
         self.check_left = False
@@ -130,6 +138,15 @@ class Ramptracker:
         # print("rear", self.cur_img_back.dtype) 
         self.is_back = True
     
+    def callback_speed(self, data):
+        if not self.is_cur_speed:
+            self.cur_speed = data.data
+            self.is_cur_speed = True
+            
+    def callback_steer(self, data):
+        if not self.is_cur_steer:
+            self.cur_steer = data.data
+            self.is_cur_steer = True
     '''
     hsv and image detetion
     '''
@@ -213,10 +230,97 @@ class Ramptracker:
         # warped_img = cv2.warpPerspective(img, M, (IMAGE_H, IMAGE_W)) # Image warping
         return output 
         
+    '''
+    Stop lane detection 
+    input: warp image
+    '''
+    def stop_lane(self, img):
+        img_hsv = self.hsv(img, 'yellow')
+        img_bin = img_hsv
+        # out_img = cv2.cvtColor(img_bin, cv2.COLOR_GRAY2BGR)
         
+        nwindows = 10
+        margin = 20
+        minpix = 50
+
+        window_width = np.int64(img_bin.shape[1]//nwindows)
+
+        # Take a histogram of the bottom half of the image
+        histogram = np.sum(img_bin[:,:img_bin.shape[1]-np.int32(img_bin.shape[1]/2)], axis=1)
+        his_max = np.max(histogram)
+        if his_max < 50000:
+            return
+
+        # print(np.max(histogram))
+        # cv2.imwrite('p.png', img_bin[:,0:img_bin.shape[1]-np.int32(img_bin.shape[1]/2)])
+        top_basey = np.argmax(histogram[:])
+
+        nonzero = img_bin.nonzero()
+        nonzeroy = np.array(nonzero[1])
+        nonzerox = np.array(nonzero[0])
+
+        # Current positions to be updated later for each window in nwindows
+        top_current = top_basey
+        top_lane_inds = []
+
+        for window in range(nwindows):
+
+            win_x_low = img_bin.shape[1] - (window+1)*window_width
+            win_x_high = img_bin.shape[1] - window*window_width
+
+            win_top_low = top_current - margin
+            win_top_high = top_current + margin 
+
+            good_top_inds = ((nonzerox >= win_top_low) & (nonzerox < win_top_high) & (nonzeroy >= win_x_low) & (nonzeroy < win_x_high)).nonzero()[0]
+            top_lane_inds.append(good_top_inds)
+
+
+            if(len(good_top_inds) > minpix):
+                top_current = np.int32(np.mean(nonzerox[good_top_inds]))
+                
+        # Concatenate the arrays of indices (previously was a list of lists of pixels)
+        top_lane_inds = np.concatenate(top_lane_inds)
+        # bottom_lane_inds = np.concatenate(bottom_lane_inds)
+
+        # Extract left and right line pixel positions
+        topx = nonzerox[top_lane_inds]
+        topy = nonzeroy[top_lane_inds] 
+        # bottomx = nonzerox[bottom_lane_inds]
+        # bottomy = nonzeroy[bottom_lane_inds]
+        ### TO-DO: Fit a second order polynomial to each using `np.polyfit` ###
+        top_fit = np.polyfit(topy, topx, 1)
+        # bottom_fit = np.polyfit(bottomy, bottomx, 1)
+        # print(bottom_fit)
+
+        # plotx = np.linspace(0, img_bin.shape[1]-1, img_bin.shape[1])
+        # # print(plotx)
+        # try:
+        #     top_fity = top_fit[0]*plotx + top_fit[1]
+        #     # bottom_fity = bottom_fit[0]*plotx + bottom_fit[1]
+        # except TypeError:
+        #     # Avoids an error if `left` and `right_fit` are still none or incorrect
+        #     print('The function failed to fit a line!')
+        #     top_fity = 1*plotx**2 + 1*plotx
+            # bottom_fity = 1*plotx**2 + 1*plotx
+        ref_x = np.int32(img_bin.shape[1]/2)
+        ref_y = np.int32(top_fit[0]*ref_x + top_fit[1])
+        if ref_y < 455:
+            self.control_state = 1
+            
+        # ## Visualization ##
+        # # Colors in the left and right lane regions
+        # out_img[topx, topy] = [255, 0, 0]
+        
+
+        # plt.plot(plotx, top_fity, color='yellow')
+        # # plt.plot(plotx, bottom_fity, color='yellow')
+        # plt.imshow(out_img) 
+    
+    
+    
     '''
     lane detection 
-    input: image
+    input: warp image
     '''
     def lane_detect(self, img, fit):
         self.check_left = False
@@ -449,29 +553,29 @@ class Ramptracker:
                     self.steer = steer
 
 
-            print("-----------------------")
-            print(' cte  +  curv')
-            print('{:.3} + {:.3}'.format(gain_cte * cte, gain_curv / right_curverad))
-            print('cte_l')
-            if check_right_l:
-                print('{:.3}'.format(cte_l))
-                print(left_sidelane)
-            else:
-                print('None')
-                print(left_sidelane)
+            # print("-----------------------")
+            # print(' cte  +  curv')
+            # print('{:.3} + {:.3}'.format(gain_cte * cte, gain_curv / right_curverad))
+            # print('cte_l')
+            # if check_right_l:
+            #     print('{:.3}'.format(cte_l))
+            #     print(left_sidelane)
+            # else:
+            #     print('None')
+            #     print(left_sidelane)
 
-            print('cte_r')
-            if check_left_r:
-                print('{:.3}'.format(cte_r))
-                print(right_sidelane)
-            else:
-                print('None')
-                print(right_sidelane)
+            # print('cte_r')
+            # if check_left_r:
+            #     print('{:.3}'.format(cte_r))
+            #     print(right_sidelane)
+            # else:
+            #     print('None')
+            #     print(right_sidelane)
 
-            print('steer: {:.3}'.format(steer))
-            print("-----------------------")
-            print("\n")
-            ll = [str(self.steer), str(cte), str(cte_l), str(cte_r)]
+            # print('steer: {:.3}'.format(steer))
+            # print("-----------------------")
+            # print("\n")
+            # ll = [str(self.steer), str(cte), str(cte_l), str(cte_r)]
             # with open('/home/juntae/catkin_ws/src/caffeine/src/steer.csv','a') as f:
             #     writer = csv.writer(f)
             #     writer.writerow(ll)
@@ -485,7 +589,7 @@ class Ramptracker:
         else:
             return None
     
-    def process(self):
+    def ramp_process(self):
         if self.is_front and self.is_left and self.is_right:
             self.start_time = time.time()
             
@@ -498,15 +602,7 @@ class Ramptracker:
             img_f = self.front(img_f)
             self.iter += 1
 
-            if self.mode == 0:
-                img_r_half = img_b[:-100, :, :]
-                img_r_half_bin = self.hsv(img_r_half)
-                check_stop_lane = np.sum(img_r_half_bin)
-                # cv2.imshow("lane_detection222", img_r_half_bin)
-                if check_stop_lane > 5000000:
-                    self.mode = 1
-
-
+            if self.control_state == 0:
                 check_right_f, check_left_f, right_fit_f, left_fit_f, img_f_lane = self.lane_detect(img_f ,2)
                 check_right_l, check_left_l, right_fit_l, left_fit_l, img_l_lane = self.lane_detect(img_l ,1)
                 check_right_r, check_left_r, right_fit_r, left_fit_r, img_r_lane = self.lane_detect(img_r ,1)
@@ -514,13 +610,14 @@ class Ramptracker:
                     img_f_lane, check_right_f, check_left_f, right_fit_f, left_fit_f,
                     img_l_lane, check_right_l, right_fit_l,
                     img_r_lane, check_left_r, left_fit_r)
+                self.stop_lane(img_f)
                 cv2.imshow("lane_detection", img_f_lane)
                 cv2.imshow("lane_detection_left", cv2.resize(img_l_lane, dsize=(300,500)))
                 cv2.imshow("lane_detection_right", cv2.resize(img_r_lane, dsize=(300,500)))
                 cv2.waitKey(1)
-            if self.mode == 1:
+            if self.control_state == 1:
                 self.steer = 0
-                self.pub_ctrl_motor.publish(0)
+                # self.pub_ctrl_motor.publish(0)
             
         if self.is_front and self.is_right:
             img_b = self.cur_img_right
@@ -532,17 +629,28 @@ class Ramptracker:
         if self.steer is not None:
             self.pub_ctrl_servo.publish(self.steer)
 
-        dt = time.time()-self.start_time
-        print('time :', dt)
+        # dt = time.time()-self.start_time
+        # print('time :', dt)
 
-        if  self.iter == 0:
-            with open('./time.csv', 'w') as f:
-                wr = csv.writer(f)
-                wr.writerow([dt])
-        else:    
-            with open('./time.csv', 'a') as f:
-                wr = csv.writer(f)
-                wr.writerow([dt])
+        # if  self.iter == 0:
+        #     with open('./time.csv', 'w') as f:
+        #         wr = csv.writer(f)
+        #         wr.writerow([dt])
+        # else:    
+        #     with open('./time.csv', 'a') as f:
+        #         wr = csv.writer(f)
+        #         wr.writerow([dt])
+        print("-----------------------")
+        print('goal distance: None')
+        print('turn point distance: None')
+        print('speed: {:.3}'.format(self.cur_speed))
+        print('steer: {:.3}'.format(self.cur_steer))
+        print("-----------------------")
+        
+        self.is_cur_speed = False
+        self.is_cur_steer = False
+        
+        return self.control_state
      
         
 if __name__ == '__main__':
@@ -551,7 +659,7 @@ if __name__ == '__main__':
     rt = Ramptracker()
 
     while not rospy.is_shutdown():        
-        rt.process()
+        rt.ramp_process()
         r.sleep()
     
     rospy.spin()

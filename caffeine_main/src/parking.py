@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
+
 import numpy as np
 import cv2
 import math as m
@@ -17,7 +18,7 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Float32
 from std_msgs.msg import Float32MultiArray
 
-class parking:
+class Parking:
     def __init__(self, save_path):
         self.cv_bridge = CvBridge()
         
@@ -34,15 +35,26 @@ class parking:
         self.sub_img_right = rospy.Subscriber('/right_cam/image_raw', Image, self.callback_img_right)
         self.sub_img_back = rospy.Subscriber('/rear_cam/image_raw', Image, self.callback_img_back)
         self.sub_pv_distance = rospy.Subscriber('/vehicle_dis', Float32, self.callback_pv_dis)
-        self.sub_parking_pose = rospy.Subscriber('/parking_point', Float32MultiArray, self.callback_parkinglot)
-        self.sub_speed = rospy.Subscriber('/arduion_ctrl/ctrl_motor', Float32, self.callback_speed)
         
+        self.sub_cur_speed = rospy.Subscriber('/arduino_ctrl/ctrl_motor', Float32, self.callback_speed)
+        self.sub_cur_steer = rospy.Subscriber('/arduino_ctrl/ctrl_servo', Float32, self.callback_steer)
         
         self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
         self.pub_ctrl_servo = rospy.Publisher('/arduino_ctrl/ctrl_servo', Float32, queue_size=1)
         self.pub_vehicle_center = rospy.Publisher('/vehicle_point', Float32MultiArray, queue_size=1)
         
+        
         self.save_path = save_path
+        self.local_coord = np.zeros([465, 443])
+        
+        # Path
+        self.coord_x = None
+        self.coord_y = None
+        self.coord_ang = None
+        
+        self.is_coord_x = False
+        self.is_coord_y = False
+        self.is_coord_ang = False
         
         # imu
         self.accel_x = None
@@ -58,7 +70,6 @@ class parking:
         
         self.turn_dis = None
         self.is_turn_dis = False
-        
         
         # imgs
         self.img_parking_path = None
@@ -132,9 +143,13 @@ class parking:
         # control
         self.steer = None
         self.speed = None
-        self.is_speed = False
-        self.speed_update = False
-
+        
+        self.is_cur_speed = False
+        self.cur_speed = None
+        self.is_cur_steer = False
+        self.cur_steer = None
+        
+        
         self.img_path = None
         self.img_vector = None
         self.img_roi = None
@@ -150,6 +165,21 @@ class parking:
     """
     callback functions
     """
+    # def callback_coord_x(self, data):
+    #     if not self.is_coord_x:
+    #         self.coord_x = data
+    #         self.is_coord_x = True
+        
+    # def callback_coord_y(self, data):
+    #     if not self.is_coord_y:
+    #         self.coord_y = data
+    #         self.is_coord_y = True
+        
+    # def callback_coord_ang(self, data):
+    #     if not self.is_coord_ang:
+    #         self.coord_ang = data
+    #         self.is_coord_ang = True
+    
     def callback_img_parking(self, data):
         if not self.is_parkinglot:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
@@ -212,21 +242,20 @@ class parking:
         if not self.is_turn_dis:
             self.turn_dis = data.data
             self.is_trun_dis = True
-            
-    def callback_parkinglot(self, data):
-        if not self.is_parkinglot:
-            self.parkinglot_pose = data.data
-            self.is_parkinglot = True
-
+    
     def callback_speed(self, data):
-        if not self.is_speed:
-            self.speed = data.data
-            self.is_speed = True
-
+        if not self.is_cur_speed:
+            self.cur_speed = data.data
+            self.is_cur_speed = True
+            
+    def callback_steer(self, data):
+        if not self.is_cur_steer:
+            self.cur_steer = data.data
+            self.is_cur_steer = True
     """
     Image warping
     """
-
+    
     def front(self, img):
         IMAGE_H, IMAGE_W, _ = img.shape
 
@@ -268,7 +297,6 @@ class parking:
     """
     hsv
     """
-    
     def hsv(self, img, color='yellow'):
         hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
 
@@ -338,7 +366,6 @@ class parking:
     """
     calibration mapping
     """
-    
     def calibration_map(self):
         img_parkinglot = self.img_parkinglot
         # print(img_parkinglot.shape)
@@ -497,10 +524,27 @@ class parking:
         # cv2.imshow('dd',rotate_img)
 
 
+        roi_x_under = int(cX_img-roi_region)
+        roi_x_upper = int(cX_img)
+        roi_y_under = int(cY_img-roi_region/2)
+        roi_y_upper = int(cY_img+roi_region/2)
+        # print(roi_x_under, roi_x_upper, roi_y_under, roi_y_upper)
+        if roi_x_under < 0:
+            roi_x_under = 0
+        if roi_y_under < 0:
+            roi_y_under = 0
+        # print(roi_x_under, roi_x_upper)
+        # print(roi_y_under, roi_y_upper)
+        # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_rotate.png', rotate_img)
+        # roi = rotate_img[roi_y_under:roi_y_upper, roi_x_under:roi_x_upper]
         roi = rotate_img
         roi = cv2.rotate(roi, cv2.ROTATE_90_CLOCKWISE)
         roi = roi[:roi.shape[0]/2,:]
-        
+        # roi = rotate_img[roi_x_under:roi_x_upper, roi_y_under:roi_y_upper]
+
+        # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path.png', img_parking_path)
+        # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/roi.png',roi)
+        # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         self.img_roi = roi
         return roi
     
@@ -560,31 +604,30 @@ class parking:
     
     def get_speed(self):
         try:
-            if self.speed == 0:
-                print('a')
-            
             if self.is_turn_dis and self.turn_dis != -1:
                 if self.turn_dis < 77:
-                    self.speed = -100
-                    self.speed_update = True
-                    # print('speed change_turn')
+                    self.speed = -1
+                    print('speed change_turn')
             elif self.is_pv_dis and self.pv_dis < 77:
                 self.speed = 0
-                self.speed_update = True
-                # print('speed change_pv')
+                self.steer = 0
+                print('speed change_pv')
             self.is_turn_dis = False
             self.is_pv_dis = False
-            self.is_speed = False
 
         except:
             self.speed = 150
             self.is_turn_dis = False
             self.is_pv_dis = False
-            self.is_speed = False
-            
         
 
-    def parking(self):
+    def parking_process(self):
+        # if self.is_coord_x == True and self.is_coord_y == True and self.is_coord_ang == True:
+        #     for i  in range(self.coord_x.shape[0] - 1):
+        #         dx = self.coord_x[i+1] - self.coord_x[i]
+        #         dy = self.coord_y[i+1] - self.coord_y[i]
+        #         # ax =
+        # if self.is_accel_x and self.is_accel_y and self.is_agl and self.is_img:
         if self.is_agl and self.agl_cal < 10:
 
             self.is_agl = False
@@ -611,7 +654,7 @@ class parking:
                 print("-----------------------")
                 print('goal distance: {:.3}'.format(self.pv_dis))
                 print('turn point distance: {:.3}'.format(self.turn_dis))
-                print('speed: {:.3}'.format(self.speed))
+                print('speed: {:.3}'.format(self.cur_speed))
                 print("-----------------------")
                 
                 
@@ -652,10 +695,12 @@ class parking:
             if self.steer is not None:
                 self.pub_ctrl_servo.publish(self.steer)
 
-            if self.speed_update:
+
+            if self.speed is not None:
                 self.pub_ctrl_motor.publish(self.speed)
-                self.speed_update = False
                 
+            self.is_cur_speed = False
+            self.is_cur_steer = False
             # dt = time.time()-self.start_time
             # print('time :', dt)
 
@@ -679,11 +724,11 @@ if __name__ == '__main__':
         
     rospy.init_node('ros_parking')
     r = rospy.Rate(10)
-    pc = parking(save_path)
+    pc = Parking(save_path)
 
     
     while not rospy.is_shutdown():        
-        pc.parking()
+        pc.parking_process()
         r.sleep()
 
     rospy.spin()
