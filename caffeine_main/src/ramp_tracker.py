@@ -248,7 +248,8 @@ class Ramptracker:
         # Take a histogram of the bottom half of the image
         histogram = np.sum(img_bin[:,:img_bin.shape[1]-np.int32(img_bin.shape[1]/2)], axis=1)
         his_max = np.max(histogram)
-        if his_max < 50000:
+        # print(his_max)
+        if his_max < 10000:
             return
 
         # print(np.max(histogram))
@@ -304,7 +305,8 @@ class Ramptracker:
             # bottom_fity = 1*plotx**2 + 1*plotx
         ref_x = np.int32(img_bin.shape[1]/2)
         ref_y = np.int32(top_fit[0]*ref_x + top_fit[1])
-        if ref_y < 455:
+        print(ref_y)
+        if ref_y > 330:
             self.control_state = 1
             
         # ## Visualization ##
@@ -576,9 +578,7 @@ class Ramptracker:
             # print("-----------------------")
             # print("\n")
             # ll = [str(self.steer), str(cte), str(cte_l), str(cte_r)]
-            # with open('/home/juntae/catkin_ws/src/caffeine/src/steer.csv','a') as f:
-            #     writer = csv.writer(f)
-            #     writer.writerow(ll)
+           
 
 
             self.is_front = False
@@ -600,8 +600,7 @@ class Ramptracker:
             img_l = self.side_left(img_l)
             img_r = self.side_right(img_r)
             img_f = self.front(img_f)
-            self.iter += 1
-
+            
             if self.control_state == 0:
                 check_right_f, check_left_f, right_fit_f, left_fit_f, img_f_lane = self.lane_detect(img_f ,2)
                 check_right_l, check_left_l, right_fit_l, left_fit_l, img_l_lane = self.lane_detect(img_l ,1)
@@ -616,7 +615,10 @@ class Ramptracker:
                 cv2.imshow("lane_detection_right", cv2.resize(img_r_lane, dsize=(300,500)))
                 cv2.waitKey(1)
             if self.control_state == 1:
-                self.steer = 0
+                self.steer = self.cur_steer
+                self.iter += 1
+            if self.iter > 15:
+                self.control_state = 2
                 # self.pub_ctrl_motor.publish(0)
             
         if self.is_front and self.is_right:
@@ -645,6 +647,7 @@ class Ramptracker:
         print('turn point distance: None')
         print('speed: {:.3}'.format(self.cur_speed))
         print('steer: {:.3}'.format(self.cur_steer))
+        print('control state: ramp')
         print("-----------------------")
         
         self.is_cur_speed = False
@@ -657,10 +660,12 @@ if __name__ == '__main__':
     rospy.init_node('lane_detection')
     r = rospy.Rate(10)
     rt = Ramptracker()
-
-    while not rospy.is_shutdown():        
-        rt.ramp_process()
-        r.sleep()
+    c = 0
+    while not rospy.is_shutdown():
+        if c == 0:      
+            c = rt.ramp_process()
+            r.sleep()
+        # print(c)
     
     rospy.spin()
         

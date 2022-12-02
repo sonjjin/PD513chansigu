@@ -503,8 +503,8 @@ class Ramptracker:
                 img_r_half_bin = self.hsv(img_r_half)
                 check_stop_lane = np.sum(img_r_half_bin)
                 # cv2.imshow("lane_detection222", img_r_half_bin)
-                if check_stop_lane > 5000000:
-                    self.mode = 1
+                # if check_stop_lane > 5000000:
+                #     self.mode = 1
 
 
                 check_right_f, check_left_f, right_fit_f, left_fit_f, img_f_lane = self.lane_detect(img_f ,2)

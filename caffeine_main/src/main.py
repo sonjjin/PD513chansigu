@@ -21,11 +21,17 @@ if __name__ == '__main__':
     control_state = 0 # 0: ramp, 1: parking
     
     while not rospy.is_shutdown():   
-        if control_state == 0:     
+        if control_state == 0 or control_state == 1:     
             control_state = rt.ramp_process()
-        elif control_state == 1:
+            print(control_state)
+            r.sleep()
+            
+        elif control_state == 2:
+            print(control_state)
             pc.parking_process()
-        r.sleep()
+            r.sleep()
+
+        
         
         
     

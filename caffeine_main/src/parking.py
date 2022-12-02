@@ -22,7 +22,7 @@ class Parking:
     def __init__(self, save_path):
         self.cv_bridge = CvBridge()
         
-        self.sub_parking_path = rospy.Subscriber('/img_w_path', Image, self.callback_img_path) # MATLAB
+        self.sub_parking_path = rospy.Subscriber('/img_w_path1', Image, self.callback_img_path) # MATLAB
         self.sub_parkinglot = rospy.Subscriber('/camera/image_raw', Image, self.callback_img_parking) 
         self.sub_turn_dis = rospy.Subscriber('/turn_dis', Float32, self.callback_turn_dis)
 
@@ -297,20 +297,22 @@ class Parking:
     """
     hsv
     """
-    def hsv(self, img, color='yellow'):
+    def hsv_parking(self, img, color='yellow'):
         hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
 
         if color == 'green':
-            mask = cv2.inRange(hsv, (30, 90, 50), (80, 255, 255))
+            mask = cv2.inRange(hsv, (30, 90, 80), (80, 255, 255))
             imask = mask > 0
             output = np.zeros_like(hsv, np.uint8)
             output[imask] = 255
             output = cv2.cvtColor(output, cv2.COLOR_RGB2GRAY)
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
             output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
-
             output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (10, 10))
+            output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
             # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
             return output
         
@@ -322,8 +324,11 @@ class Parking:
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
             output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
 
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
             output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (6, 6))
+            output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
             # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
             # output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
             # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
@@ -334,10 +339,10 @@ class Parking:
             imask = mask > 0
             output = np.zeros_like(hsv, np.uint8)
             output[imask] = 255
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (4, 4))
             output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
 
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
             output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
             # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
             # output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
@@ -370,7 +375,7 @@ class Parking:
         img_parkinglot = self.img_parkinglot
         # print(img_parkinglot.shape)
         # cv2.imwrite('./dddd.png', img_parkinglot)
-        img_parkinglot_hsv = self.hsv(img_parkinglot, 'green')
+        img_parkinglot_hsv = self.hsv_parking(img_parkinglot, 'green')
         img_parkinglot_hsv_2 = cv2.cvtColor(img_parkinglot_hsv, cv2.COLOR_GRAY2BGR)
         cv2.imwrite(self.save_path + '/green_point.png',img_parkinglot_hsv_2)
         
@@ -414,8 +419,8 @@ class Parking:
     def find_property(self):
         img_parkinglot = self.calibration_map()
         cv2.imwrite(self.save_path + '/parkinglot.png',img_parkinglot)
-        img_red = self.hsv(img_parkinglot, 'red')
-        img_blue = self.hsv(img_parkinglot, 'blue')
+        img_red = self.hsv_parking(img_parkinglot, 'red')
+        img_blue = self.hsv_parking(img_parkinglot, 'blue')
 
         cv2.imwrite(self.save_path + '/img_red.png', img_red)
         cv2.imwrite(self.save_path + '/img_blue.png', img_blue)
@@ -436,6 +441,7 @@ class Parking:
             y0, x0 = regions_red[0].centroid[0], regions_red[0].centroid[1]
             y0, x0 = round(y0), round(x0)
             vector.append([x0, y0])
+            is_red = True
             # img = cv2.line(img, (x0, y0), (x0, y0),(0,0,255),5)
         
         if len(regions_blue) == 1:
@@ -443,6 +449,7 @@ class Parking:
             y0, x0 = regions_blue[0].centroid[0], regions_blue[0].centroid[1]
             y0, x0 = round(y0), round(x0)
             vector.append([x0, y0])
+            is_blue = True
             # img = cv2.line(img, (x0, y0), (x0, y0),(255,0,0),5) 
         # print(cX, cY)
         cX = int(round((vector[0][0] + vector[1][0])/2))
@@ -489,7 +496,7 @@ class Parking:
 
         cv2.imwrite(self.save_path + '/img_parking_path_ori.png', img_parking_path)
 
-        img_parking_path = self.hsv(img_parking_path, 'purple')
+        img_parking_path = self.hsv_parking(img_parking_path, 'purple')
         img_parking_path = cv2.cvtColor(img_parking_path, cv2.COLOR_BGR2GRAY)
         # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path.png', img_parking_path)
 
@@ -550,7 +557,7 @@ class Parking:
     
     def get_steer(self):
         # try:
-        self.calibration_map()
+        # self.calibration_map()
             # try:
         target = self.find_property()
         roi = self.get_roi(target)
@@ -605,10 +612,11 @@ class Parking:
     def get_speed(self):
         try:
             if self.is_turn_dis and self.turn_dis != -1:
-                if self.turn_dis < 77:
+                if self.turn_dis < 80:
                     self.speed = -1
                     print('speed change_turn')
-            elif self.is_pv_dis and self.pv_dis < 77:
+
+            elif self.is_pv_dis and self.pv_dis < 80 and self.pv_dis > 20:
                 self.speed = 0
                 self.steer = 0
                 print('speed change_pv')
@@ -628,90 +636,97 @@ class Parking:
         #         dy = self.coord_y[i+1] - self.coord_y[i]
         #         # ax =
         # if self.is_accel_x and self.is_accel_y and self.is_agl and self.is_img:
-        if self.is_agl and self.agl_cal < 10:
+        # if self.is_agl and self.agl_cal < 10:
 
-            self.is_agl = False
-            self.agl_init = self.agl_init + self.agl.data
-            self.agl_cal = self.agl_cal + 1
-            # print(self.agl_init)
-            if self.agl_cal == 10:
-                self.agl_init /= 10
-                self.agl_cal = 1000
-                print('angle calibaration')
+        #     self.is_agl = False
+        #     self.agl_init = self.agl_init + self.agl.data
+        #     self.agl_cal = self.agl_cal + 1
+        #     # print(self.agl_init)
+        #     if self.agl_cal == 10:
+        #         self.agl_init /= 10
+        #         self.agl_cal = 1000
+        #         print('angle calibaration')
             
             
-        elif self.is_agl and self.agl_cal == 1000:     
-            if self.is_parking_path and self.is_parkinglot:
-                self.start_time = time.time()
-                
-                agl = self.agl.data - self.agl_init
-                # self.agl_init = self.agl.data
-                # print(agl)                
-                self.get_steer()
-                self.get_speed()
-                # print(self.steer)
-                
-                print("-----------------------")
-                print('goal distance: {:.3}'.format(self.pv_dis))
-                print('turn point distance: {:.3}'.format(self.turn_dis))
-                print('speed: {:.3}'.format(self.cur_speed))
-                print("-----------------------")
-                
-                
-                cv2.imshow('roi', self.img_roi)
-                # cv2.imshow('red', self.img_red)
-                # cv2.imshow('blue', self.img_blue)
+        # elif self.is_agl and self.agl_cal == 1000:
+        if self.iter == 0:
+            self.is_parking_path = False
+            self.is_parkinglot = False
+            self.iter = self.iter+1
 
-                cv2.imshow('map', self.img_map)
-                cv2.waitKey(1)
-                cv2.imwrite(self.save_path + '/path_w_car/' + str(self.iter).zfill(4) + '.png', self.img_map)
-
+        if self.is_parking_path and self.is_parkinglot:
+            self.start_time = time.time()
             
-                # if  self.iter == 0:
-                #     with open(self.save_path + '/angle.csv', 'w') as f:
-                #         wr = csv.writer(f)
-                #         wr.writerow([agl])
-                # else:    
-                #     with open(self.save_path + '/angle.csv', 'a') as f:
-                #         wr = csv.writer(f)
-                #         wr.writerow([agl])
-                    
-                # if  self.iter == 0:
-                #     with open(self.save_path + '/cte.csv', 'w') as f:
-                #         wr = csv.writer(f)
-                #         wr.writerow([self.cte])
-                # else:    
-                #     with open(self.save_path + '/cte.csv', 'a') as f:
-                #         wr = csv.writer(f)
-                #         wr.writerow([self.cte])
+            agl = self.agl.data - self.agl_init
+            # self.agl_init = self.agl.data
+            # print(agl)                
+            self.get_steer()
+            self.get_speed()
+            # print(self.steer)
+            
+            print("-----------------------")
+            print('goal distance: {:.3}'.format(self.pv_dis))
+            print('turn point distance: {:.3}'.format(self.turn_dis))
+            print('speed: {:.3}'.format(self.cur_speed))
+            print('steer: {:.3}'.format(self.cur_steer))
+            print('control state: parking')
+            print("-----------------------")
+            
+            
+            cv2.imshow('roi', self.img_roi)
+            # cv2.imshow('red', self.img_red)
+            # cv2.imshow('blue', self.img_blue)
 
-                # print(self.iter)
-                self.iter = self.iter+1
-                self.is_agl = False                
+            cv2.imshow('map', self.img_map)
+            cv2.waitKey(1)
+            cv2.imwrite(self.save_path + '/path_w_car/' + str(self.iter).zfill(4) + '.png', self.img_map)
 
-            else:
-                print('wait for all receiving')
-                
-            if self.steer is not None:
-                self.pub_ctrl_servo.publish(self.steer)
-
-
-            if self.speed is not None:
-                self.pub_ctrl_motor.publish(self.speed)
-                
-            self.is_cur_speed = False
-            self.is_cur_steer = False
-            # dt = time.time()-self.start_time
-            # print('time :', dt)
-
+        
             # if  self.iter == 0:
-            #     with open(self.save_path + '/time.csv', 'w') as f:
+            #     with open(self.save_path + '/angle.csv', 'w') as f:
             #         wr = csv.writer(f)
-            #         wr.writerow([dt])
+            #         wr.writerow([agl])
             # else:    
-            #     with open(self.save_path + '/time.csv', 'a') as f:
+            #     with open(self.save_path + '/angle.csv', 'a') as f:
             #         wr = csv.writer(f)
-            #         wr.writerow([dt])
+            #         wr.writerow([agl])
+                
+            # if  self.iter == 0:
+            #     with open(self.save_path + '/cte.csv', 'w') as f:
+            #         wr = csv.writer(f)
+            #         wr.writerow([self.cte])
+            # else:    
+            #     with open(self.save_path + '/cte.csv', 'a') as f:
+            #         wr = csv.writer(f)
+            #         wr.writerow([self.cte])
+
+            # print(self.iter)
+            self.iter = self.iter+1
+            self.is_agl = False                
+
+        else:
+            print('wait for all receiving')
+            
+        if self.steer is not None:
+            self.pub_ctrl_servo.publish(self.steer)
+
+
+        if self.speed is not None:
+            self.pub_ctrl_motor.publish(self.speed)
+            
+        self.is_cur_speed = False
+        self.is_cur_steer = False
+        # dt = time.time()-self.start_time
+        # print('time :', dt)
+
+        # if  self.iter == 0:
+        #     with open(self.save_path + '/time.csv', 'w') as f:
+        #         wr = csv.writer(f)
+        #         wr.writerow([dt])
+        # else:    
+        #     with open(self.save_path + '/time.csv', 'a') as f:
+        #         wr = csv.writer(f)
+        #         wr.writerow([dt])
 
      
         

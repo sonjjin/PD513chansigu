@@ -21,7 +21,10 @@ class parking:
     def __init__(self, save_path):
         self.cv_bridge = CvBridge()
         
-        self.sub_parking_path = rospy.Subscriber('/img_w_path', Image, self.callback_img_path) # MATLAB
+        self.sub_parking_path1 = rospy.Subscriber('/img_w_path1', Image, self.callback_img_path1) # MATLAB
+        self.sub_parking_path2 = rospy.Subscriber('/img_w_path2', Image, self.callback_img_path2) # MATLAB
+        self.sub_parking_path3 = rospy.Subscriber('/img_w_path3', Image, self.callback_img_path3) # MATLAB
+
         self.sub_parkinglot = rospy.Subscriber('/camera/image_raw', Image, self.callback_img_parking) 
         self.sub_turn_dis = rospy.Subscriber('/turn_dis', Float32, self.callback_turn_dis)
 
@@ -61,8 +64,12 @@ class parking:
         
         
         # imgs
-        self.img_parking_path = None
-        self.is_parking_path = False
+        self.img_parking_path1 = None
+        self.is_parking_path1 = False
+        self.img_parking_path2 = None
+        self.is_parking_path2 = False
+        self.img_parking_path3 = None
+        self.is_parking_path3 = False
         
         self.img_parkinglot = None
         self.is_parkinglot = False
@@ -135,6 +142,8 @@ class parking:
         self.is_speed = False
         self.speed_update = False
 
+        self.using_map = 1
+
         self.img_path = None
         self.img_vector = None
         self.img_roi = None
@@ -157,12 +166,26 @@ class parking:
             # print("front",  self.cur_img_front.dtype) 
             self.is_parkinglot = True
     
-    def callback_img_path(self, data):
-        if not self.is_parking_path:
+    def callback_img_path1(self, data):
+        if not self.is_parking_path1:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
-            self.img_parking_path = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            self.img_parking_path1 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             # print("front",  self.cur_img_front.dtype) 
-            self.is_parking_path = True
+            self.is_parking_path1 = True
+
+    def callback_img_path2(self, data):
+        if not self.is_parking_path2:
+            img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
+            self.img_parking_path2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            # print("front",  self.cur_img_front.dtype) 
+            self.is_parking_path2 = True
+
+    def callback_img_path3(self, data):
+        if not self.is_parking_path3:
+            img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
+            self.img_parking_path3 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            # print("front",  self.cur_img_front.dtype) 
+            self.is_parking_path3 = True
 
     def callback_accel_x(self, data):
         if not self.is_accel_x:
@@ -456,14 +479,18 @@ class parking:
         agl = (180 - agl_glo) # turn angle
         # agl = agl_glo
         # print(agl
-        
-        img_parking_path = self.img_parking_path
+        if self.using_map == 1:
+            img_parking_path = self.img_parking_path1
+        elif self.using_map == 2:
+            img_parking_path = self.img_parking_path2
+        elif self.using_map == 3:
+            img_parking_path = self.img_parking_path3
         # img_parking_path = self.img_parkinglot
 
         cv2.imwrite(self.save_path + '/img_parking_path_ori.png', img_parking_path)
 
-        img_parking_path = self.hsv(img_parking_path, 'purple')
-        img_parking_path = cv2.cvtColor(img_parking_path, cv2.COLOR_BGR2GRAY)
+        # img_parking_path = self.hsv(img_parking_path, 'purple')
+        # img_parking_path = cv2.cvtColor(img_parking_path, cv2.COLOR_BGR2GRAY)
         # cv2.imwrite('/home/hellobye/catkin_ws/src/caffeine/src/images/img_parking_path.png', img_parking_path)
 
         # print(img_parking_path.shape)
@@ -560,14 +587,16 @@ class parking:
     
     def get_speed(self):
         try:
-            if self.speed == 0:
-                print('a')
-            
             if self.is_turn_dis and self.turn_dis != -1:
-                if self.turn_dis < 77:
-                    self.speed = -100
-                    self.speed_update = True
-                    # print('speed change_turn')
+                if self.using_map == 1:
+                    if self.turn_dis < 77:
+                        self.speed = -100
+                        self.speed_update = True
+                        # print('speed change_turn')
+                if self.using_map == 2:
+                    if self.turn_dis < 77:
+                        self.spped = 150
+                        self.speed_update = True
             elif self.is_pv_dis and self.pv_dis < 77:
                 self.speed = 0
                 self.speed_update = True
@@ -598,14 +627,18 @@ class parking:
             
             
         elif self.is_agl and self.agl_cal == 1000:     
-            if self.is_parking_path and self.is_parkinglot:
+            if self.is_parking_path1 and self.is_parking_path2 and self.is_parking_path3 and self.is_parkinglot:
                 self.start_time = time.time()
                 
                 agl = self.agl.data - self.agl_init
                 # self.agl_init = self.agl.data
-                # print(agl)                
-                self.get_steer()
+                # print(agl)      
+                if self.turn_dis != -1 and self.turn_dis < 77:
+                    self.using_map += 1
+
                 self.get_speed()
+                self.get_steer()
+                
                 # print(self.steer)
                 
                 print("-----------------------")
@@ -613,6 +646,7 @@ class parking:
                 print('turn point distance: {:.3}'.format(self.turn_dis))
                 print('speed: {:.3}'.format(self.speed))
                 print("-----------------------")
+                
                 
                 
                 cv2.imshow('roi', self.img_roi)

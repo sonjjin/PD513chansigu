@@ -56,7 +56,6 @@ class find_distance():
             self.vspeed = data.data
             self.is_vspeed = True    
     
-    
     def distance(self):
         try:
             # print(self.turnpoint[0][0])
