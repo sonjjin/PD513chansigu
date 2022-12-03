@@ -38,14 +38,10 @@ class Parking:
         
         self.sub_cur_speed = rospy.Subscriber('/arduino_ctrl/ctrl_motor', Float32, self.callback_speed)
         self.sub_cur_steer = rospy.Subscriber('/arduino_ctrl/ctrl_servo', Float32, self.callback_steer)
-        self.sub_cur_pose = rospy.Subscriber('/vehicle_point', Float32MultiArray, self.callback_vehicle_pose)
-        self.sub_cur_angle = rospy.Subscriber('/vehicle_angle', Float32, self.callback_vehicle_angle)
-
+        
         self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
         self.pub_ctrl_servo = rospy.Publisher('/arduino_ctrl/ctrl_servo', Float32, queue_size=1)
         self.pub_vehicle_center = rospy.Publisher('/vehicle_point', Float32MultiArray, queue_size=1)
-        self.pub_vehicle_angle = rospy.Publisher('/vehicle_angle', Float32MultiArray, queue_size=1)
-
         
         
         self.save_path = save_path
@@ -82,7 +78,7 @@ class Parking:
         self.img_parkinglot = None
         self.is_parkinglot = False
 
-        self.is_angle = False
+        self.is_red = False
         self.is_blue = False
         
         self.is_front = False
@@ -152,11 +148,6 @@ class Parking:
         self.cur_speed = None
         self.is_cur_steer = False
         self.cur_steer = None
-        self.is_cur_pose = False
-        self.cur_pose = [400, 30]
-        self.is_angle = False
-        self.cur_angle = m.pi
-
         
         
         self.img_path = None
@@ -202,6 +193,21 @@ class Parking:
             self.img_parking_path = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             # print("front",  self.cur_img_front.dtype) 
             self.is_parking_path = True
+
+    def callback_accel_x(self, data):
+        if not self.is_accel_x:
+            self.accel_x = data
+            self.is_accel_x = True
+
+    def callback_accel_y(self, data):
+        if not self.is_accel_x:
+            self.accel_y = data
+            self.is_accel_y = True
+
+    def callback_agl(self, data):
+        if not self.is_agl:
+            self.agl = data
+            self.is_agl = True
             
     def callback_img_front(self, data):
         img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
@@ -246,20 +252,166 @@ class Parking:
         if not self.is_cur_steer:
             self.cur_steer = data.data
             self.is_cur_steer = True
+    """
+    Image warping
+    """
+    
+    def front(self, img):
+        IMAGE_H, IMAGE_W, _ = img.shape
 
-    def callback_vehicle_pose(self, data):
-        if not self.is_cur_pose:
-            self.cur_pose = data.data
-            self.is_cur_pose = True    
-            if self.cur_pose[0] == None:
-                self.is_cur_pose = False
+        #print(img.shape)
+        #img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
 
-    def callback_vehicle_angle(self, data):
-        if not self.is_angle:
-            self.cur_angle = data.data
-            self.is_angle = True    
-            if self.cur_angle[0] == None:
-                self.is_angle = False
+        src = self.forward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
+        dst = self.forward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
+        #src = np.float32([[210,115], [210,180], [150,120], [150,175]])
+        #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
+        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+
+        IMAGE_H, IMAGE_W, _ = img.shape
+
+        warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
+        output = warped_img[90:,:-10]
+        return output#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
+
+    def rear(self, img):
+        IMAGE_H, IMAGE_W, _ = img.shape
+    
+        #img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
+        src = self.backward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
+        dst = self.backward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
+        #src = np.float32([[210,115], [210,180], [150,120], [150,175]])
+        #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
+        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+    
+        IMAGE_H, IMAGE_W, _ = img.shape
+    
+        warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
+        output = warped_img[90:,:]
+        output = cv2.rotate(output, cv2.ROTATE_180)
+        return output#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
+               
+    
+    """
+    hsv
+    """
+    def hsv_parking(self, img, color='yellow'):
+        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+
+        if color == 'green':
+            mask = cv2.inRange(hsv, (30, 90, 80), (80, 255, 255))
+            imask = mask > 0
+            output = np.zeros_like(hsv, np.uint8)
+            output[imask] = 255
+            output = cv2.cvtColor(output, cv2.COLOR_RGB2GRAY)
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+            output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+            output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (10, 10))
+            output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+            # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
+            return output
+        
+        elif color == 'red':
+            mask = cv2.inRange(hsv, (110, 100, 100), (150, 255, 255))
+            imask = mask > 0
+            output = np.zeros_like(hsv, np.uint8)
+            output[imask] = 255
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+            output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
+            output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (6, 6))
+            output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+            # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
+            # output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+            # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
+            return output
+
+        elif color == 'blue':
+            mask = cv2.inRange(hsv, (0, 150, 100), (20, 255, 255))
+            imask = mask > 0
+            output = np.zeros_like(hsv, np.uint8)
+            output[imask] = 255
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (4, 4))
+            output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
+            output = cv2.morphologyEx(output, cv2.MORPH_DILATE, kernel)
+            # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
+            # output = cv2.morphologyEx(output, cv2.MORPH_OPEN, kernel)
+            # output = cv2.cvtColor(output, cv2.COLOR_GRAY2BGR)
+            return output
+
+        elif color == 'yellow':
+            mask = cv2.inRange(hsv, (80, 40, 145), (150, 255, 255))
+            imask = mask > 0
+            temp = np.zeros_like(hsv, np.uint8)
+            temp[imask] = 255
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10,10))
+            clean = cv2.morphologyEx(temp[:,:,0], cv2.MORPH_OPEN, kernel)
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15,15))
+            output = cv2.morphologyEx(clean, cv2.MORPH_CLOSE, kernel)
+            return output
+
+        elif color == 'purple':
+            mask = cv2.inRange(hsv, (130, 170, 130), (180, 255, 150))
+            imask = mask > 0
+            output = np.zeros_like(hsv, np.uint8)
+            output[imask] = 255
+            # mask = cv2.inRange(hsv, (80, 100, 145), (150, 255, 255))
+            return output
+
+    """
+    calibration mapping
+    """
+    def calibration_map(self):
+        img_parkinglot = self.img_parkinglot
+        # print(img_parkinglot.shape)
+        # cv2.imwrite('./dddd.png', img_parkinglot)
+        img_parkinglot_hsv = self.hsv_parking(img_parkinglot, 'green')
+        img_parkinglot_hsv_2 = cv2.cvtColor(img_parkinglot_hsv, cv2.COLOR_GRAY2BGR)
+        cv2.imwrite(self.save_path + '/green_point.png',img_parkinglot_hsv_2)
+        
+        # cv2.imshow(img_parkinglot_hsv_2)
+        # cv2.waitKey(1)
+        label_parkinglot = label(img_parkinglot_hsv)
+        regions = regionprops(label_parkinglot)
+        center_point = []
+
+        for props in regions:
+            y0, x0 = props.centroid
+            y0, x0 = round(y0), round(x0)
+            center_point.append([x0, y0])
+        center_point.sort()
+        # print(center_point) # ll, lu, ru, rl
+        # y = cv2.line(y, (center_point[0][0], center_point[0][1]), (center_point[0][0], center_point[0][1]),(0,0,255),5)
+        comp = 9
+        comp2 = 6
+        x_ll = 0 + comp2
+        y_ll = 0 + comp2
+        x_ru = 465 - comp
+        y_ru = 186 - comp
+        src = np.array(center_point, dtype=np.float32)
+        dst = np.float32([(x_ll, y_ll),
+            (x_ll, y_ru),
+            (x_ru, y_ru),
+            (x_ru, y_ll)])
+        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+        # Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+
+        warped_img = cv2.warpPerspective(img_parkinglot, M, (self.map_W, self.map_H))
+        warped_img = cv2.flip(warped_img, 0)
+        self.img_map = warped_img
+        output = warped_img.copy()
+        self.is_parkinglot = False
+        return output
 
     """
     find the head of vehicle
@@ -300,40 +452,28 @@ class Parking:
             is_blue = True
             # img = cv2.line(img, (x0, y0), (x0, y0),(255,0,0),5) 
         # print(cX, cY)
-        try:
-            cX = int(round((vector[0][0] + vector[1][0])/2))
-            cY = int(round((vector[0][1] + vector[1][1])/2))
-            X1_t = vector[0][0]
-            X2_t = vector[1][0]
-            Y1_t = 443 - vector[0][1]
-            Y2_t = 443 - vector[1][1]
-            X_t = X2_t - X1_t
-            Y_t = Y2_t - Y1_t
-            # print(X1_t, vector[0][1])
-            
-            angle = m.atan2(Y_t, X_t) + m.pi
-            # if angle < 0:
-            #     angle = -angle
-            angle_deg = angle * 180 / m.pi
-            
-            # print(angle_deg)
-            
-        except:
-            if self.is_cur_pose and self.is_angle and self.is_blue:
-                cX = self.cur_pose[0]
-                cX = self.cur_pose[1]
-                if self.is_angle[0] is not None:
-                    angle_deg = self.cur_angle
-
-
+        cX = int(round((vector[0][0] + vector[1][0])/2))
+        cY = int(round((vector[0][1] + vector[1][1])/2))
+        
+        X1_t = vector[0][0]
+        X2_t = vector[1][0]
+        Y1_t = 443 - vector[0][1]
+        Y2_t = 443 - vector[1][1]
+        X_t = X2_t - X1_t
+        Y_t = Y2_t - Y1_t
+        # print(X1_t, vector[0][1])
+        
+        angle = m.atan2(Y_t, X_t) + m.pi
+        # if angle < 0:
+        #     angle = -angle
+        angle_deg = angle * 180 / m.pi
+        # print(angle_deg)
+        
         output["vehicle_center"] = [cX, cY]
         output["angle"] = angle_deg
         output_vc = Float32MultiArray()
-        output_angle = angle_deg
         output_vc.data = output["vehicle_center"]
-
         self.pub_vehicle_center.publish(output_vc)
-        self.pub_vehicle_angle.publish(output_angle)
         
         # print(img_parkinglot.shape)
         # img_parkinglot = cv2.cvtColor(img_parkinglot, cv2.COLOR_)
