@@ -2,7 +2,7 @@
 #-*- coding: utf-8 -*-
 
 from ramp_tracker import Ramptracker
-from parking import Parking
+from parking_final import Parking
 import rospy
 import os
 
@@ -28,7 +28,7 @@ if __name__ == '__main__':
             
         elif control_state == 2:
             print(control_state)
-            pc.parking_process()
+            pc.process()
             r.sleep()
 
         

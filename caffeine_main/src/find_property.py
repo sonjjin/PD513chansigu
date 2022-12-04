@@ -7,7 +7,8 @@ import cv2
 import math as m
 from cv_bridge import CvBridge
 from skimage.measure import label, regionprops
-from utils import *
+
+from utils import hsv_parking
 import os
 
 import rospy
@@ -17,16 +18,25 @@ from std_msgs.msg import Float32MultiArray
 
 class find_property():
     def __init__(self):
+
+        self.cv_bridge = CvBridge()
+
         self.sub_warp_matrix = rospy.Subscriber('/warp_matrix', Float32MultiArray, self.callback_warp_matrix) 
         self.sub_parkinglot = rospy.Subscriber('/camera/image_raw', Image, self.callback_img_parking) 
         
         self.pub_properties = rospy.Publisher('/properties', Float32MultiArray, queue_size = 1)
         
 
+        self.iter = 0
         self.is_parkinglot = False
         self.img_parkinglot = None
         self.is_warp_matrix = False
         self.warp_matrix = None
+        self.map_W = 465
+        self.map_H = 443
+        self.properties = np.zeros([3])
+        self.is_red = False
+        self.is_blue = False
         
     def callback_warp_matrix(self, data):
         if not self.is_warp_matrix:
@@ -40,14 +50,29 @@ class find_property():
             # print("front",  self.cur_img_front.dtype) 
             self.is_parkinglot = True
 
-    
+    def calibaration_map(self):
+        M = self.warp_matrix # The transformation matrix
+        img_parkinglot = self.img_parkinglot
+        # Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+
+        warped_img = cv2.warpPerspective(img_parkinglot, M, (self.map_W, self.map_H))
+        warped_img = cv2.flip(warped_img, 0)
+        self.img_map = warped_img
+        output = warped_img.copy()
+        self.is_parkinglot = False
+        return output
+
     def process(self):
         if self.is_warp_matrix:
-            img_parkinglot = self.calibration_map()
+            # print('find properties')
+            warped_img = cv2.warpPerspective(self.img_parkinglot, self.warp_matrix, (self.map_W, self.map_H))
+            warped_img = cv2.flip(warped_img, 0)
+            img_parkinglot = warped_img
             # cv2.imwrite(self.save_path + '/parkinglot.png',img_parkinglot)
-            img_red = self.hsv_parking(img_parkinglot, 'red')
-            img_blue = self.hsv_parking(img_parkinglot, 'blue')
-
+            img_red = hsv_parking(img_parkinglot, 'red')
+            img_blue = hsv_parking(img_parkinglot, 'blue')
+            cv2.imshow('.', img_parkinglot)
+            cv2.waitKey(1)
             # cv2.imwrite(self.save_path + '/img_red.png', img_red)
             # cv2.imwrite(self.save_path + '/img_blue.png', img_blue)
 
@@ -61,13 +86,12 @@ class find_property():
             regions_blue = regionprops(label_img_blue)
             
             vector = []
-            output = {}
             if len(regions_red) == 1:
                 # print(regions_red[0].centroid)
                 y0, x0 = regions_red[0].centroid[0], regions_red[0].centroid[1]
                 y0, x0 = round(y0), round(x0)
                 vector.append([x0, y0])
-                is_red = True
+                self.is_red = True
                 # img = cv2.line(img, (x0, y0), (x0, y0),(0,0,255),5)
             
             if len(regions_blue) == 1:
@@ -75,10 +99,11 @@ class find_property():
                 y0, x0 = regions_blue[0].centroid[0], regions_blue[0].centroid[1]
                 y0, x0 = round(y0), round(x0)
                 vector.append([x0, y0])
-                is_blue = True
+                self.is_blue = True
                 # img = cv2.line(img, (x0, y0), (x0, y0),(255,0,0),5) 
             # print(cX, cY)
-            try:
+
+            if self.is_red and self.is_blue:
                 cX = int(round((vector[0][0] + vector[1][0])/2))
                 cY = int(round((vector[0][1] + vector[1][1])/2))
                 X1_t = vector[0][0]
@@ -93,42 +118,69 @@ class find_property():
                 # if angle < 0:
                 #     angle = -angle
                 angle_deg = angle * 180 / m.pi
+                print(self.properties)
+
                 
-                # print(angle_deg)
+
                 
-            except:
-                if self.is_cur_pose and self.is_angle and self.is_blue:
-                    cX = self.cur_pose[0]
-                    cX = self.cur_pose[1]
-                    if self.is_angle[0] is not None:
-                        angle_deg = self.cur_angle
+            else:
+                try:
+                    if self.iter != 0:
+                        cX = self.properties[0]
+                        cY = self.properties[1]
+                        angle_deg = self.properties[2]
+                        self.is_parkinglot = False
+                        # print('complete properties')
+                        # print(self.properties)
+                    else:
+                        if sefl.iter == 0:
+                            self.properties[0] = 400
+                            self.properties[1] = 73
+                            self.properties[2] = 180
+                        cX = self.properties[0]
+                        cY = self.properties[1]
+                        angle_deg = self.properties[2]
+                        # print('complete properties')
+                        # print(self.properties)
 
 
-            output["vehicle_center"] = [cX, cY]
-            output["angle"] = angle_deg
-            output_vc = Float32MultiArray()
-            output_angle = angle_deg
-            output_vc.data = output["vehicle_center"]
+                except:
+                    if self.iter != 0:
+                        cX = self.properties[0]
+                        cY = self.properties[1]
+                        angle_deg = self.properties[2]
+                        self.is_parkinglot = False
+                        # print('complete properties')
+                        # print(self.properties)
+                    else:
+                        self.properties[0] = 400
+                        self.properties[1] = 73
+                        self.properties[2] = 180
+                        cX = self.properties[0]
+                        cY = self.properties[1]
+                        angle_deg = self.properties[2]
+                        # print(self.properties)
 
-            self.pub_vehicle_center.publish(output_vc)
-            self.pub_vehicle_angle.publish(output_angle)
-            
-            # print(img_parkinglot.shape)
-            # img_parkinglot = cv2.cvtColor(img_parkinglot, cv2.COLOR_)
-            self.img_map = cv2.line(img_parkinglot, (int(vector[0][0]), int(vector[0][1])), (int(vector[1][0]), int(vector[1][1])),(0,255,0), 4)
-            # cv2.imwrite('prop.png', img)
-            # cv2.waitKey(1)
+                    # print('error properties')
+
+
+            print('X: {0:0.3f}, y: {1:0.3f}, angle: {2:0.3f}'.format(self.properties[0], self.properties[1], self.properties[2]))
+            self.properties = np.array([cX, cY, angle_deg])
+            output_pub = Float32MultiArray()
+            output_pub.data = self.properties
+            self.pub_properties.publish(output_pub)
+            # print('complete properties')
+            self.iter += self.iter
+            self.is_red = False
+            self.is_blue = False
             self.is_parkinglot = False
-            
-            return output
-            
-                
+
                 
         
     
 if __name__ == '__maine__':
     rospy.init_node('ros_map_calibration')
-    r = rospy.Rate(10)
+    r = rospy.Rate(20)
     fp = find_property()
     
     while not rospy.is_shutdown():        

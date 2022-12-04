@@ -7,22 +7,25 @@ import cv2
 import math as m
 from cv_bridge import CvBridge
 from skimage.measure import label, regionprops
-from utils import *
+from utils import hsv_parking
 import os
 
 import rospy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import MultiArrayDimension
 
 
 class map_calibaration():
     def __init__(self):
+        self.cv_bridge = CvBridge()
+
         self.sub_parkinglot = rospy.Subscriber('/camera/image_raw', Image, self.callback_img_parking) 
         self.pub_matrix = rospy.Publisher('/warp_matrix', Float32MultiArray, queue_size = 1)
         
         
-        self.img_parking_path = None
-        self.is_parking_path = False
+        self.img_parkinglot = None
+        self.is_parkinglot = False
         self.complete = False
         self.matrix = None
     
@@ -37,6 +40,7 @@ class map_calibaration():
         msg_matrix = Float32MultiArray()
         msg_matrix.data = matrix.reshape([-1])
         msg_matrix.layout.data_offset = 0
+
         msg_matrix.layout.dim = [MultiArrayDimension(), MultiArrayDimension()]
         
         msg_matrix.layout.dim[0].label = "row"
@@ -54,9 +58,9 @@ class map_calibaration():
                 img_parkinglot = self.img_parkinglot
                 # print(img_parkinglot.shape)
                 # cv2.imwrite('./dddd.png', img_parkinglot)
+                # cv2.imshow('..', img_parkinglot)
                 img_parkinglot_hsv = hsv_parking(img_parkinglot, 'green')
                 
-                # cv2.imshow(img_parkinglot_hsv_2)
                 # cv2.waitKey(1)
                 label_parkinglot = label(img_parkinglot_hsv)
                 regions = regionprops(label_parkinglot)
@@ -86,10 +90,14 @@ class map_calibaration():
                     self.matrix = M
                     self.publish_matrix(self.matrix)
                     self.complete = True
-                    
+                    print('calibration complete')
+
                 except:
                     print('calibration error')
                     self.is_parkinglot = False
+                
+                return self.complete
+            
     
             else:
                 self.publish_matrix(self.matrix)
@@ -99,7 +107,7 @@ class map_calibaration():
     
 if __name__ == '__maine__':
     rospy.init_node('ros_map_calibration')
-    r = rospy.Rate(10)
+    r = rospy.Rate(20)
     mc = map_calibaration()
     
     while not rospy.is_shutdown():        

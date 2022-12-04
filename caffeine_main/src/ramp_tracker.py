@@ -111,6 +111,14 @@ class Ramptracker:
 
         self.start_time = time.time()
 
+        self.check_left_f = None
+        self.check_right_l = None
+        self.check_left_r = None
+        self.left_sidelane = None
+        self.right_sidelane = None
+        self.cte = None
+        self.cte_l = None
+        self.cte_r = None
     '''
     image callback
     '''
@@ -345,7 +353,7 @@ class Ramptracker:
             minpix = 50 # Set minimum number of pixels found to recenter window
             window_height = np.int64(img_rgb.shape[0]//nwindows) # Set height of windows - based on nwindows above and image shape
 
-            histogram = np.sum(img_bin[200:], axis=0)
+            histogram = np.sum(img_bin[20:], axis=0)
 
             # find lane
             midpoint = np.int64(histogram.shape[0]//2) - 100
@@ -472,7 +480,7 @@ class Ramptracker:
         img_f_h = img_f.shape[0]/2
         img_l_h = img_l.shape[0]/2
         img_r_h = img_r.shape[0]/2
-        f_h_target = img_f_h * 0.7
+        f_h_target = img_f_h * 0.75
         l_h_target = img_l_h * 0.5
         r_h_target = img_r_h * 0.5
 
@@ -480,6 +488,8 @@ class Ramptracker:
         right_sidelane = -100
         # print(img.shape, h_target)
         
+
+
         if check_left_f:
             # left_fit = left_fit
             left_lane = left_fit_f[0]*f_h_target**2 + left_fit_f[1]*f_h_target + left_fit_f[2]
@@ -511,17 +521,17 @@ class Ramptracker:
             ls_ref = 390
             rs_ref = 90
             cte = (frl_ref-right_lane)  # 높을수록 붙어서감
-            gain_cte = 0.3      # 높을수록 민감
+            gain_cte = 0.25      # 높을수록 민감
             gain_curv = -1      # 높을수록 민감
-            gain_cte_l = 0.1
-            gain_cte_r = 0.1
+            gain_cte_l = 0.15
+            gain_cte_r = 0.15
             steer = 0.0
             cte_l = 0
             cte_r = 0
 
             if check_right_l:
                 cte_l = (ls_ref - left_sidelane)
-                if cte_l < 60:
+                if cte_l < 70:
                     steer = gain_cte * cte + gain_curv / right_curverad - cte_l*gain_cte_l
                     steer = max(min(steer, 20.0), -20.0)
                     # self.steer = steer
@@ -554,7 +564,14 @@ class Ramptracker:
                     steer = max(min(steer, 20.0), -20.0)
                     self.steer = steer
 
-
+            self.check_left_f = check_left_f
+            self.check_left_r = check_left_r
+            self.check_right_l = check_right_l
+            self.left_sidelane = left_sidelane
+            self.right_sidelane = right_sidelane
+            self.cte = cte
+            self.cte_l = cte_l
+            self.cte_r = cte_r
             # print("-----------------------")
             # print(' cte  +  curv')
             # print('{:.3} + {:.3}'.format(gain_cte * cte, gain_curv / right_curverad))
@@ -642,12 +659,30 @@ class Ramptracker:
         #     with open('./time.csv', 'a') as f:
         #         wr = csv.writer(f)
         #         wr.writerow([dt])
+
+
         print("-----------------------")
         print('goal distance: None')
         print('turn point distance: None')
         print('speed: {:.3}'.format(self.cur_speed))
         print('steer: {:.3}'.format(self.cur_steer))
         print('control state: ramp')
+        print('cte: {:.3}'.format(self.cte))
+        print('cte_l')
+        if self.check_right_l:
+            print('{:.3}'.format(self.cte_l))
+            print(self.left_sidelane)
+        else:
+            print('None')
+            print(self.left_sidelane)
+
+        print('cte_r')
+        if self.check_left_r:
+            print('{:.3}'.format(self.cte_r))
+            print(self.right_sidelane)
+        else:
+            print('None')
+            print(self.right_sidelane)
         print("-----------------------")
         
         self.is_cur_speed = False

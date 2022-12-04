@@ -12,7 +12,7 @@ from std_msgs.msg import Float32MultiArray
 class find_distance():
 
     def __init__(self):
-        self.sub_vehicle_pose = rospy.Subscriber('/vehicle_point', Float32MultiArray, self.callback_vehicle)
+        self.sub_vehicle_pose = rospy.Subscriber('/properties', Float32MultiArray, self.callback_vehicle)
         self.sub_parking_point = rospy.Subscriber('/parking_point', Float32MultiArray, self.callback_parkinglot)
         self.sub_turnpoint = rospy.Subscriber('/turnpoint', Float32MultiArray, self.callback_turnpoint)
         self.sub_vehicle_spped = rospy.Subscriber('/arduino_ctrl/ctrl_motor', Float32, self.callback_vspeed)
@@ -26,7 +26,7 @@ class find_distance():
         self.turnpoint = []
         self.vspeed = None
         
-        self.is_vehicle = False
+        self.is_vehicle_pose = False
         self.is_parkinglot = False
         self.is_turnpoint = False
         self.is_vspeed = False
@@ -35,11 +35,11 @@ class find_distance():
         self.pub_dis = None
         
     def callback_vehicle(self, data):
-        if not self.is_vehicle:
+        if not self.is_vehicle_pose:
             self.vehicle_pose = data.data
-            self.is_vehicle = True    
+            self.is_vehicle_pose = True    
             if self.vehicle_pose[0] == None:
-                self.is_vehicle = False
+                self.is_vehicle_pose = False
             
     def callback_parkinglot(self, data):
         if not self.is_parkinglot:
@@ -61,13 +61,13 @@ class find_distance():
             # print(self.turnpoint[0][0])
             # print(self.turnpoint[1][0])
 
-            if self.is_vehicle and self.is_parkinglot:
+            if self.is_vehicle_pose and self.is_parkinglot:
                 dis = m.sqrt((self.vehicle_pose[0] - self.parkinglot_pose[0])**2 + (self.vehicle_pose[1] - (465 - self.parkinglot_pose[1]))**2)
                 # print(self.vehicle_pose)
                 self.pub_dis = dis
                 turndis = None
                 self.pub_turndis = turndis
-                self.is_vehicle = False
+                self.is_vehicle_pose = False
                 # self.is_parkinglot = False
             
             # print(self.turnpoint)
