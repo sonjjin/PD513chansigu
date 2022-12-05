@@ -15,7 +15,7 @@ if __name__ == '__main__':
         os.makedirs(save_path+'/roi')
         os.makedirs(save_path+'/path_w_car')
     rospy.init_node('main')
-    r = rospy.Rate(10)
+    r = rospy.Rate(20)
     rt = Ramptracker()
     pc = Parking(save_path)
     control_state = 0 # 0: ramp, 1: parking
@@ -32,8 +32,5 @@ if __name__ == '__main__':
             r.sleep()
 
         
-        
-        
-    
     rospy.spin()
         

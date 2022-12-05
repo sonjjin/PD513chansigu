@@ -3,10 +3,7 @@
 
 from find_property import find_property
 from map_calibration import map_calibaration
-import rospy
 import os
-
-
 
 if __name__ == '__main__':
     rospy.init_node('recognition')

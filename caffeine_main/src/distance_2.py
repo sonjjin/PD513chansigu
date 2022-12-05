@@ -19,7 +19,7 @@ class find_distance():
         self.sub_control_state = rospy.Subscriber('/contorl_state', Float32, self.callback_control_state)
         
         self.pub_vehivle_dis = rospy.Publisher('/vehicle_dis', Float32, queue_size=1)
-        self.pub_turn_dis = rospy.Publisher('/turn_dis', Float32, queue_size=1)
+        self.pub_turn_dis = rospy.Publisher('/turn_dis', Float32MultiArray, queue_size=1)
         
         
         self.vehicle_pose = []
@@ -29,7 +29,7 @@ class find_distance():
         self.contorl_state = None
         
         self.is_vehicle_pose = False
-        self.is_parkinglot = False
+        self.is_parkinglot_pose = False
         self.is_turnpoint = False
         self.is_vspeed = False
         self.is_control_state = False
@@ -45,9 +45,9 @@ class find_distance():
                 self.is_vehicle_pose = False
             
     def callback_parkinglot(self, data):
-        if not self.is_parkinglot:
+        if not self.is_parkinglot_pose:
             self.parkinglot_pose = data.data
-            self.is_parkinglot = True
+            self.is_parkinglot_pose = True
             
     def callback_turnpoint(self, data):
         if not self.is_turnpoint:
@@ -69,43 +69,33 @@ class find_distance():
             # print(self.turnpoint[0][0])
             # print(self.turnpoint[1][0])
 
-            if self.is_vehicle_pose and self.is_parkinglot:
+            if self.is_vehicle_pose and self.is_parkinglot_pose:
                 dis = m.sqrt((self.vehicle_pose[0] - self.parkinglot_pose[0])**2 + (self.vehicle_pose[1] - (465 - self.parkinglot_pose[1]))**2)
-                # print(self.vehicle_pose)
                 self.pub_dis = dis
-                turndis = None
-                self.pub_turndis = turndis
                 self.is_vehicle_pose = False
                 # self.is_parkinglot = False
             
+            
             # print(self.turnpoint)
-            if self.is_turnpoint and self.turnpoint[0][2] == 14:
-                turndis = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0][0])**2 + ((465 - self.vehicle_pose[1]) - self.turnpoint[1][0])**2)
-                # print('b')
-                
-                if self.vspeed < 0:
-                    turndis = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0][1])**2 + ((465 - self.vehicle_pose[1]) - self.turnpoint[1][1])**2)
-                # self.pub_turn_dis.publish(turn_dis)
-                self.pub_turndis = turndis
+            if self.is_turnpoint:
+                if self.turnpoint[0][2] != 14 and self.turnpoint[0][2] // 10 != 2:
+                    turndis1 = -1
+                    turndis2 = -1
+                else:
+                    turndis1 = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0][0])**2 + ((465 - self.vehicle_pose[1]) - self.turnpoint[1][0])**2)
+                    if self.turnpoint[0][2] == 14:
+                        turndis2 = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0][1])**2 + ((465 - self.vehicle_pose[1]) - self.turnpoint[1][1])**2)
+                    else:
+                        turndis2 = -1
+                    
 
-                
-            elif self.is_turnpoint and self.turnpoint[0][2] // 10 == 2:
-                # print('c')
-                
-                turndis = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0][0])**2 + ((465 - self.vehicle_pose[1]) - self.turnpoint[1][0])**2)
-                # self.pub_turn_dis.publish(turn_dis)
-                self.pub_turndis = turndis
-
-                
-            else:
-                # print('d')
-                turndis = -1
-                self.pub_turndis = turndis
-
-
+            turndis_pub = Float32MultiArray()
+            turndis_pub.data = np.array([turndis1, turndis2])
+            self.pub_turn_dis.publish(turndis_pub)
+            
+            
             self.pub_vehivle_dis.publish(self.pub_dis)
-            self.pub_turn_dis.publish(self.pub_turndis) 
-            print(self.pub_dis, self.pub_turndis)
+            self.pub_turn_dis.publish(turndis_pub) 
 
         except:
             print('wait')

@@ -133,7 +133,7 @@ class find_property():
                         # print('complete properties')
                         # print(self.properties)
                     else:
-                        if sefl.iter == 0:
+                        if self.iter == 0:
                             self.properties[0] = 400
                             self.properties[1] = 73
                             self.properties[2] = 180
