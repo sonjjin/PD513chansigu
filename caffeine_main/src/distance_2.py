@@ -16,7 +16,7 @@ class find_distance():
         self.sub_parking_point = rospy.Subscriber('/parking_point', Float32MultiArray, self.callback_parkinglot)
         self.sub_turnpoint = rospy.Subscriber('/turnpoint', Float32MultiArray, self.callback_turnpoint)
         self.sub_vehicle_spped = rospy.Subscriber('/arduino_ctrl/ctrl_motor', Float32, self.callback_vspeed)
-        self.sub_control_state = rospy.Subscriber('/contorl_state', Float32, self.callback_control_state)
+        self.sub_control_state = rospy.Subscriber('/contorl_state', Float32, self.callback_contorl_state)
         
         self.pub_vehivle_dis = rospy.Publisher('/vehicle_dis', Float32, queue_size=1)
         self.pub_turn_dis = rospy.Publisher('/turn_dis', Float32MultiArray, queue_size=1)
@@ -82,9 +82,9 @@ class find_distance():
                     turndis1 = -1
                     turndis2 = -1
                 else:
-                    turndis1 = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0][0])**2 + ((465 - self.vehicle_pose[1]) - self.turnpoint[1][0])**2)
+                    turndis1 = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0][0])**2 + ((self.vehicle_pose[1]) - (465 - self.turnpoint[1][0]))**2)
                     if self.turnpoint[0][2] == 14:
-                        turndis2 = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0][1])**2 + ((465 - self.vehicle_pose[1]) - self.turnpoint[1][1])**2)
+                        turndis2 = m.sqrt((self.vehicle_pose[0] - self.turnpoint[0][1])**2 + ((self.vehicle_pose[1]) - (465 - self.turnpoint[1][1]))**2)
                     else:
                         turndis2 = -1
                     
@@ -95,7 +95,10 @@ class find_distance():
             
             
             self.pub_vehivle_dis.publish(self.pub_dis)
-            self.pub_turn_dis.publish(turndis_pub) 
+            self.pub_turn_dis.publish(turndis_pub)
+            print('goal distance: {}'.format(self.pub_dis))
+            print('turn point1 distance: {}'.format(turndis_pub.data[0]))
+            print('turn point1 distance: {}'.format(turndis_pub.data[1]))
 
         except:
             print('wait')

@@ -118,7 +118,7 @@ class find_property():
                 # if angle < 0:
                 #     angle = -angle
                 angle_deg = angle * 180 / m.pi
-                print(self.properties)
+                # print(self.properties)
 
                 
 
@@ -153,9 +153,10 @@ class find_property():
                         # print('complete properties')
                         # print(self.properties)
                     else:
-                        self.properties[0] = 400
-                        self.properties[1] = 73
-                        self.properties[2] = 180
+                        if self.iter == 0:
+                            self.properties[0] = 400
+                            self.properties[1] = 73
+                            self.properties[2] = 180
                         cX = self.properties[0]
                         cY = self.properties[1]
                         angle_deg = self.properties[2]
@@ -164,7 +165,7 @@ class find_property():
                     # print('error properties')
 
 
-            # print('X: {0:0.3f}, y: {1:0.3f}, angle: {2:0.3f}'.format(self.properties[0], self.properties[1], self.properties[2]))
+            print('X: {0:0.3f}, y: {1:0.3f}, angle: {2:0.3f}'.format(self.properties[0], self.properties[1], self.properties[2]))
             self.properties = np.array([cX, cY, angle_deg])
             output_pub = Float32MultiArray()
             output_pub.data = self.properties

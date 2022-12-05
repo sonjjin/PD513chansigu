@@ -33,6 +33,8 @@ class Parking:
         
         self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
         self.pub_ctrl_servo = rospy.Publisher('/arduino_ctrl/ctrl_servo', Float32, queue_size=1)
+        self.pub_ctrl_state = rospy.Publisher('/contorl_state', Float32, queue_size=1)
+
         
         self.save_path = save_path
         self.local_coord = np.zeros([465, 443])
@@ -89,21 +91,21 @@ class Parking:
         if not self.is_parking_path1:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
             self.img_parking_path1 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            # print("front",  self.cur_img_front.dtype) 
+            # print("front",  self.img_parking_path1.shape) 
             self.is_parking_path1 = True
         
     def callback_img_path2(self, data):
         if not self.is_parking_path1:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
             self.img_parking_path2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            # print("front",  self.cur_img_front.dtype) 
+            # print("front",  self.img_parking_path2.shape) 
             self.is_parking_path2 = True
     
     def callback_img_path3(self, data):
         if not self.is_parking_path3:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
             self.img_parking_path3 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            # print("front",  self.cur_img_front.dtype) 
+            # print("front",  self.img_parking_path3.shape) 
             self.is_parking_path3 = True
     
     def callback_pv_dis(self, data):
@@ -114,7 +116,7 @@ class Parking:
     def callback_turn_dis(self, data):
         if not self.is_turn_dis:
             self.turn_dis = data.data
-            self.is_trun_dis = True
+            self.is_turn_dis = True
     
     def callback_speed(self, data):
         if not self.is_cur_speed:
@@ -136,11 +138,13 @@ class Parking:
         cY = target[1]
         agl_glo = target[2]
         agl = (180 - agl_glo) # turn angle
+
         if self.control_state == 1:
             img_parking_path = self.img_parking_path1
 
         if self.control_state == 2:
             img_parking_path = self.img_parking_path2
+            agl = 180 + agl
             
         if self.control_state == 3:
             img_parking_path = self.img_parking_path3
@@ -164,40 +168,53 @@ class Parking:
     
     def get_steer(self):
         if self.is_properties:
-            target = self.properties
-            roi = self.get_roi(target)
-        
-            gain_cte = 0.3
-            gain_curv = -1
-            cte = 0
-
-            look_a_head = roi.shape[0] * 0.3
-            ref = roi.shape[1]/2
+            try:
+                target = self.properties
+                roi = self.get_roi(target)
             
-            path_idx = np.nonzero(roi)
-            path_fit = np.polyfit(path_idx[0], path_idx[1], 2)
+                gain_cte = 0.3
+                gain_curv = -1
+                cte = 0
 
-            ploty = np.linspace(0, roi.shape[0]-1, roi.shape[0]) # y value
-            path_fitx = path_fit[0]*ploty**2+path_fit[1]*ploty+path_fit[2]
+                look_a_head = roi.shape[0] * 0.3
+                ref = roi.shape[1]/2
+                # if self.control_state == 2:
+                #     look_a_head = roi.shape[0] * 0.5
+                #     ref = roi.shape[1]*0.5
 
+                
+                path_idx = np.nonzero(roi)
+                path_fit = np.polyfit(path_idx[0], path_idx[1], 2)
 
-            roi = cv2.cvtColor(roi, cv2.COLOR_GRAY2BGR)
-            for i in range(len(ploty)):
-                roi = cv2.line(roi, (int(round(path_fitx[i])), int(round(ploty[i]))), (int(round(path_fitx[i])), int(round(ploty[i]))), (255,0,0), 2)
-            roi = cv2.line(roi, (int(round(roi.shape[1]/2)), int(round(look_a_head))), (int(round(roi.shape[1]/2)), int(round(look_a_head))), (0,255,0), 10)
-            cv2.imwrite(self.save_path + '/roi/' + str(self.iter).zfill(4) + '.png', roi)
+                ploty = np.linspace(0, roi.shape[0]-1, roi.shape[0]) # y value
+                path_fitx = path_fit[0]*ploty**2+path_fit[1]*ploty+path_fit[2]
 
-            front_lane = path_fit[0]*look_a_head**2 + path_fit[1]*look_a_head + path_fit[2]
+                # print(roi.shape)
+                # roi = cv2.cvtColor(roi, cv2.COLOR_GRAY2BGR)
+                for i in range(len(ploty)):
+                    roi = cv2.line(roi, (int(round(path_fitx[i])), int(round(ploty[i]))), (int(round(path_fitx[i])), int(round(ploty[i]))), (255,0,0), 2)
+                roi = cv2.line(roi, (int(round(roi.shape[1]/2)), int(round(look_a_head))), (int(round(roi.shape[1]/2)), int(round(look_a_head))), (0,255,0), 10)
+                cv2.imwrite(self.save_path + '/roi/' + str(self.iter).zfill(4) + '.png', roi)
 
-            roi = cv2.line(roi, (int(round(front_lane)), int(round(look_a_head))), (int(round(front_lane)), int(round(look_a_head))), (0,255,120), 10)
-            self.img_roi = roi
-            front_curverad = ((1 + (2*path_fit[0]*look_a_head + path_fit[1])**2)**1.5) / (2*path_fit[0]) * self.m_per_pixel
-            cte = ref - front_lane
-            steer = gain_cte * cte + gain_curv / front_curverad
-            steer = max(min(steer, 20.0), -20.0)
-            self.steer = steer
-            self.cte = cte
-            self.is_properties = False
+                front_lane = path_fit[0]*look_a_head**2 + path_fit[1]*look_a_head + path_fit[2]
+
+                roi = cv2.line(roi, (int(round(front_lane)), int(round(look_a_head))), (int(round(front_lane)), int(round(look_a_head))), (0,255,120), 10)
+                self.img_roi = roi
+                front_curverad = ((1 + (2*path_fit[0]*look_a_head + path_fit[1])**2)**1.5) / (2*path_fit[0]) * self.m_per_pixel
+                cte = ref - front_lane
+                steer = gain_cte * cte + gain_curv / front_curverad
+                steer = max(min(steer, 20.0), -20.0)
+                self.steer = steer
+                if self.control_state == 2:
+                    steer = steer + 4
+                    steer = max(min(steer, 20.0), -20.0)
+                    self.steer = -steer
+
+                self.cte = cte
+                self.is_properties = False
+            except:
+                self.steer = 0
+
         else:
             print('none properties')
 
@@ -205,15 +222,17 @@ class Parking:
     def get_speed(self):
         try:
             if self.is_turn_dis:
-                if self.control_state == 1 and self.speed > 1 and self.turn_dis[0] != -1:
-                    if self.turn_dis < 80:
+                print('a')
+                if self.control_state == 1 and self.turn_dis[0] != -1:
+                    if self.turn_dis[0] < 60:
                         self.speed = 0
-                        self.control_state += 1
+                        self.control_state = self.control_state + 1
+                        time.sleep(1)
 
                 elif self.control_state == 2 and self.turn_dis[0] < 80 and self.turn_dis[0] != -1:
-                    self.speed = -100
-                    if self.turn_dis[1] < 80:
-                        self.control_state += 1
+                    self.speed = -150
+                    if self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
+                        self.control_state = self.control_state + 1
                         self.speed = 0
                 
                 elif self.control_state == 3 and self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
@@ -223,13 +242,11 @@ class Parking:
                 self.speed = 0
                 self.steer = 0
                 self.parking_finish = True
-            self.is_turn_dis = False
-            self.is_pv_dis = False
+            
 
         except:
             self.speed = 150
-            self.is_turn_dis = False
-            self.is_pv_dis = False
+
         
     def process(self):
         if self.iter == 0:
@@ -237,27 +254,29 @@ class Parking:
             self.is_parking_path2 = False
             self.is_parking_path3 = False
             self.iter = self.iter+1
-
+        
         else:
-            if self.is_parking_path1 and self.is_parking_path2 and self.is_parking_path3:
+            print(self.is_parking_path1, self.is_parking_path2, self.is_parking_path3)
+            print(self.is_turn_dis)
+            if self.is_parking_path1:
                 self.start_time = time.time()
-          
                 self.get_steer()
                 self.get_speed()
 
                 print("-----------------------")
                 print('goal distance: {:.3}'.format(self.pv_dis))
                 print('turn point1 distance: {:.3}'.format(self.turn_dis[0]))
-                print('turn point1 distance: {:.3}'.format(self.turn_dis[1]))
+                print('turn point2 distance: {:.3}'.format(self.turn_dis[1]))
                 print('speed: {:.3}'.format(self.cur_speed))
                 print('steer: {:.3}'.format(self.cur_steer))
+                print('control state: {}'.format(self.control_state))
                 print('control state: parking')
                 print("-----------------------")
                 
                 
                 cv2.imshow('roi', self.img_roi)
                 cv2.waitKey(1)
-                self.iter = self.iter+1
+                # self.iter = self.iter+1
                 self.is_agl = False                
 
             else:
@@ -268,9 +287,14 @@ class Parking:
 
             if self.speed is not None:
                 self.pub_ctrl_motor.publish(self.speed)
-                
+            
+            self.pub_ctrl_state.publish(self.control_state)
             self.is_cur_speed = False
             self.is_cur_steer = False
+            self.is_turn_dis = False
+            self.is_pv_dis = False
+            self.iter = self.iter+1
+
 
 
      
@@ -283,7 +307,7 @@ if __name__ == '__main__':
         os.makedirs(save_path+'/path_w_car')
         
     rospy.init_node('ros_parking')
-    r = rospy.Rate(20)
+    r = rospy.Rate(15)
     pc = Parking(save_path)
 
     
