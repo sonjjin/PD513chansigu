@@ -133,7 +133,7 @@ class find_property():
                         # print('complete properties')
                         # print(self.properties)
                     else:
-                        if sefl.iter == 0:
+                        if self.iter == 0:
                             self.properties[0] = 400
                             self.properties[1] = 73
                             self.properties[2] = 180
@@ -164,13 +164,13 @@ class find_property():
                     # print('error properties')
 
 
-            print('X: {0:0.3f}, y: {1:0.3f}, angle: {2:0.3f}'.format(self.properties[0], self.properties[1], self.properties[2]))
+            # print('X: {0:0.3f}, y: {1:0.3f}, angle: {2:0.3f}'.format(self.properties[0], self.properties[1], self.properties[2]))
             self.properties = np.array([cX, cY, angle_deg])
             output_pub = Float32MultiArray()
             output_pub.data = self.properties
             self.pub_properties.publish(output_pub)
             # print('complete properties')
-            self.iter += self.iter
+            self.iter += 1
             self.is_red = False
             self.is_blue = False
             self.is_parkinglot = False
