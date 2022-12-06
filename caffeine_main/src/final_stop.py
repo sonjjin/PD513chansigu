@@ -15,7 +15,7 @@ from std_msgs.msg import Float32
 from std_msgs.msg import Float32MultiArray
 
 class Finalstop:
-    def __init__(self):
+    def __init__(self, save_path):
         self.cv_bridge = CvBridge()
         self.img_front_sub = rospy.Subscriber('/front_cam/image_raw', Image, self.img_front_callback)
         self.img_left_sub = rospy.Subscriber('/left_cam/image_raw', Image, self.img_left_callback)
@@ -31,7 +31,7 @@ class Finalstop:
         self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
 
 
-
+        self.save_path = save_path
         self.is_front = False
         self.is_left = False
         self.is_right = False
@@ -56,6 +56,13 @@ class Finalstop:
                     (640, 440)
                 ])
 
+        self.backward_src = np.float32([
+                    (125, 180),
+                    (0, 440),
+                    (500, 180),
+                    (640, 440)
+        ])
+
         self.left_src = np.float32([    
                     (100, 45),  
                     (5,415),    
@@ -76,6 +83,13 @@ class Finalstop:
                     (560, 90),
                     (470, 445)
                 ])    
+
+        self.backward_dst = np.float32([
+                    (90, 90),
+                    (180, 440),
+                    (530, 85),
+                    (460, 445)
+        ]) 
 
         self.left_dst = np.float32([
                     (140, 60),
@@ -107,7 +121,8 @@ class Finalstop:
         self.count = 0
         self.iter = 0
 
-        self.turnpoint = None
+        self.turnpoint = [(0,0,20),
+                          (0,0,0)]
         self.is_turnpoint = False
 
         self.start_time = time.time()

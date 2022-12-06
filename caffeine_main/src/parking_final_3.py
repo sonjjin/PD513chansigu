@@ -192,6 +192,40 @@ class Parking:
         if not self.is_turnpoint:
             self.turnpoint =  np.array(data.data).reshape([data.layout.dim[0].size, data.layout.dim[1].size])
             self.is_turnpoint = True
+
+
+    def front(self, img):
+        IMAGE_H, IMAGE_W, _ = img.shape
+        
+        src = self.forward_src
+        dst = self.forward_dst
+        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+
+        warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))
+        output = warped_img[90:,:-10]
+        return output
+
+
+    def rear(self, img):
+        IMAGE_H, IMAGE_W, _ = img.shape
+    
+        #img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
+        src = self.backward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
+        dst = self.backward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
+        #src = np.float32([[210,115], [210,180], [150,120], [150,175]])
+        #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
+        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+    
+        IMAGE_H, IMAGE_W, _ = img.shape
+    
+        warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
+        output = warped_img[90:,:]
+        output = cv2.rotate(output, cv2.ROTATE_180)
+        return output#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
+
+    
     
     def get_roi(self, target):
         cX = target[0]
@@ -232,9 +266,9 @@ class Parking:
     '''
     
     def stop_lane(self, img):
+
         img_hsv = hsv(img, 'yellow')
         img_bin = img_hsv
-        
         nwindows = 10
         margin = 20
         minpix = 50
@@ -243,10 +277,10 @@ class Parking:
 
         histogram = np.sum(img_bin[:,:img_bin.shape[1]-np.int32(img_bin.shape[1]/2)], axis=1)
         his_max = np.max(histogram)
+        print(his_max)
         
         if his_max < 10000:
             return
-
         top_basey = np.argmax(histogram[:])
 
         nonzero = img_bin.nonzero()
@@ -355,6 +389,7 @@ class Parking:
                     if self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
                         self.control_map = self.control_map + 1
                         self.speed = 0
+                        time.sleep(1)
                 
                 elif self.control_map == 3 and self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
                     self.speed = 150
@@ -383,9 +418,11 @@ class Parking:
                         if self.turnpoint[0][2] // 10 == 2:
                             if self.is_cur_img_rear:
                                 img = self.cur_img_rear
+                                img = self.rear(img)
                         else:
                             if self.is_cur_img_front:
                                 img = self.cur_img_front
+                                img = self.front(img)
                         self.stop_lane(img)
                     except:
                         print('no imgs')
@@ -397,7 +434,7 @@ class Parking:
                     print('speed: {:.3}'.format(self.cur_speed))
                     print('steer: {:.3}'.format(self.cur_steer))
                     print('control map: {}'.format(self.control_map))
-                    print('control state: parking')
+                    print('control state: parking {:}'.format(self.control_state))
                     print("-----------------------")
                     
                     cv2.imshow('roi', self.img_roi)
@@ -420,10 +457,10 @@ class Parking:
                 self.is_cur_img_rear = False
                 self.iter = self.iter + 1
                             
-            if self.control_map == 3:
-                self.count = self.conut + 1
+            if self.control_state == 3:
+                self.control_count = self.control_count + 1
                 
-            if self.count > 10:
+            if self.control_count > 10:
                 self.control_state = 4
                 
         return self.control_state

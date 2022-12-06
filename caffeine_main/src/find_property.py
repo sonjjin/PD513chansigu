@@ -33,7 +33,9 @@ class find_property():
         self.is_warp_matrix = False
         self.warp_matrix = None
         self.map_W = 465
-        self.map_H = 443
+        # self.map_H = 443
+        self.map_H = 466
+
         self.properties = np.zeros([3])
         self.is_red = False
         self.is_blue = False

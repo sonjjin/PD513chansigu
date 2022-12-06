@@ -27,6 +27,8 @@ class Parking:
         self.sub_proprties = rospy.Subscriber('/properties', Float32MultiArray, self.callback_properties)
         self.sub_pv_distance = rospy.Subscriber('/vehicle_dis', Float32, self.callback_pv_dis)
         self.sub_turn_distance = rospy.Subscriber('/turn_dis', Float32MultiArray, self.callback_turn_dis)
+        self.sub_turnpoint = rospy.Subscriber('/turnpoint', Float32MultiArray, self.callback_turnpoint)
+
     
         self.sub_cur_speed = rospy.Subscriber('/arduino_ctrl/ctrl_motor', Float32, self.callback_speed)
         self.sub_cur_steer = rospy.Subscriber('/arduino_ctrl/ctrl_servo', Float32, self.callback_steer)
@@ -48,6 +50,9 @@ class Parking:
 
         self.properties = None
         self.is_properties = False
+
+        self.turnpoint = None
+        self.is_turnpoint = False
         
         # imgs
         self.img_parking_path1 = None
@@ -133,6 +138,11 @@ class Parking:
             self.properties = data.data
             self.is_properties = True
     
+    def callback_turnpoint(self, data):
+        if not self.is_turnpoint:
+            self.turnpoint =  np.array(data.data).reshape([data.layout.dim[0].size, data.layout.dim[1].size])
+            self.is_turnpoint = True
+
     def get_roi(self, target):
         cX = target[0]
         cY = target[1]
@@ -238,13 +248,25 @@ class Parking:
                 
                 elif self.control_map == 3 and self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
                     self.speed = 150
-                    
-            elif self.is_pv_dis and self.pv_dis < 70 and self.pv_dis > 20:
+    
+            if self.turnpoint[0][2] == 11:
+                th = 40
+            elif self.turnpoint[0][2] == 12:
+                th = 80
+            elif self.turnpoint[0][2] == 13:
+                th = 80
+            elif self.turnpoint[0][2] == 14:
+                th = 80
+            elif self.turnpoint[0][2] == 15:
+                th = 65
+
+            if self.is_pv_dis and self.pv_dis < th and self.pv_dis > 10:
+                print('b')
                 self.speed = 0
                 self.steer = 0
                 self.parking_finish = True
         except:
-            self.speed = 150
+            self.speed = self.cur_speed
 
         
     def process(self):
@@ -255,8 +277,10 @@ class Parking:
             self.iter = self.iter + 1
         
         else:
-            print(self.is_parking_path1, self.is_parking_path2, self.is_parking_path3)
-            print(self.is_turn_dis)
+            # print(self.is_parking_path1, self.is_parking_path2, self.is_parking_path3)
+            # print(self.is_turn_dis)
+            if self.parking_finish:
+                return
             if self.is_parking_path1:
                 self.start_time = time.time()
                 self.get_steer()
@@ -268,7 +292,7 @@ class Parking:
                 print('turn point2 distance: {:.3}'.format(self.turn_dis[1]))
                 print('speed: {:.3}'.format(self.cur_speed))
                 print('steer: {:.3}'.format(self.cur_steer))
-                print('control state: {}'.format(self.control_map))
+                print('control map: {}'.format(self.control_map))
                 print('control state: parking')
                 print("-----------------------")
                 

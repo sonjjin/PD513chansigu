@@ -67,10 +67,10 @@ def hsv_parking(img, color='yellow'):
         # mask = cv2.inRange(hsv, (80, 100, 145), (150, 255, 255))
         return output
     
-def hsv(self, img, color='yellow'):
+def hsv(img, color='yellow'):
 
         hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-        hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+        # hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
 
         if color == 'green':
             mask = cv2.inRange(hsv, (25, 60, 50), (86, 255, 255))
@@ -86,7 +86,17 @@ def hsv(self, img, color='yellow'):
         imask = mask > 0
         temp = np.zeros_like(hsv, np.uint8)
         temp[imask] = 255    
-        output = self.image_clean(temp[:,:,0])
+        output = image_clean(temp[:,:,0])
         # plt.imshow(cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
 
         return output
+
+def image_clean(input):
+        H, W = input.shape[:2]
+        # using morphology
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9,9))
+        clean = cv2.morphologyEx(input, cv2.MORPH_OPEN, kernel)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15,15))
+        img_clean = cv2.morphologyEx(clean, cv2.MORPH_CLOSE, kernel)
+        
+        return img_clean

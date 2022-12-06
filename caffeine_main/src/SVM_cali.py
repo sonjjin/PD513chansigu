@@ -443,12 +443,14 @@ class SurroundView:
                 left = self.side_left(img4)
                 right = self.side_right(img2)
 
-                head = cv2.line(head, (160, 0), (160, head.shape[0]), (255,0,0), 3)
-                head = cv2.line(head, (470, 0), (470, head.shape[0]), (255,0,0), 3)
+                head = cv2.line(head, (145, 0), (145, head.shape[0]), (255,0,0), 3)
+                head = cv2.line(head, (485, 0), (485, head.shape[0]), (255,0,0), 3)
 
-                left = cv2.line(left, (320, 0), (320, left.shape[0]), (255,0,0), 5)
-                right = cv2.line(right, (50, 0), (50, right.shape[0]), (255,0,0), 3)
+                left = cv2.line(left, (325, 0), (325, left.shape[0]), (255,0,0), 5)
+                right = cv2.line(right, (55, 0), (55, right.shape[0]), (255,0,0), 3)
 
+                tail = cv2.line(tail, (145, 0), (145, tail.shape[0]), (255,0,0), 3)
+                tail = cv2.line(tail, (490, 0), (490, tail.shape[0]), (255,0,0), 3)
 
 
                 _, frame = self.merge(head,tail,left,right,self.car)

@@ -43,7 +43,7 @@ class Ramptracker:
         self.is_cur_steer = False
         self.cur_steer = None
         self.turn_right = True # turn right: true, turn left: false
-        self.start_position = start_position # 0: right, 1: left
+        self.start_position = start_position # 1: look left, 0: look right, 2: both lane
         
         ## 테스트용 ##
         # path = '/home/juntae/catkin_ws/src/caffeine/src/seq/front/'
@@ -78,7 +78,14 @@ class Ramptracker:
                     (170, 440),
                     (560, 90),
                     (470, 445)
-                ])    
+                ])
+
+        self.backward_dst = np.float32([
+                    (90, 90),
+                    (180, 440),
+                    (530, 85),
+                    (460, 445)
+                ])
 
         self.left_dst = np.float32([
                     (140, 60),
@@ -145,6 +152,7 @@ class Ramptracker:
         self.cur_img_back = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
         # print("rear", self.cur_img_back.dtype) 
         self.is_back = True
+
     def callback_speed(self, data):
         if not self.is_cur_speed:
             self.cur_speed = data.data
@@ -356,11 +364,11 @@ class Ramptracker:
 
             # find lane
             """it depends on the start position"""
-            if self.start_position == 0:
+            if self.start_position == 0 or self.start_position == 2:
                 midpoint = np.int64(histogram.shape[0]//2) - 100
             if self.start_position == 1:
                 midpoint = np.int64(histogram.shape[0]//2) + 50
-                if self.count > 100:
+                if self.count > 40:
                     self.start_position = 0
                     
             leftx_base = np.argmax(histogram[:midpoint])
@@ -409,7 +417,10 @@ class Ramptracker:
                     right_lane_inds.append(good_right_inds)
                     if(len(good_right_inds) > minpix):
                         rightx_current = np.int64(np.mean(nonzerox[good_right_inds]))
-                
+            
+            if self.check_left and self.check_right and self.count > 20:
+                self.start_position = 2
+
             if self.check_left == True:
                 left_lane_inds = np.concatenate(left_lane_inds)
                 leftx = nonzerox[left_lane_inds]
@@ -462,8 +473,8 @@ class Ramptracker:
 
             # plt.imshow(img)        
             # plt.clf() 
-            
-            self.count += 1   
+            if self.cur_speed > 10:
+                self.count += 1   
             # self.check_left = False
             # self.check_right = False
             check_right = self.check_right
@@ -485,7 +496,7 @@ class Ramptracker:
         img_f_h = img_f.shape[0]/2
         img_l_h = img_l.shape[0]/2
         img_r_h = img_r.shape[0]/2
-        f_h_target = img_f_h * 0.75
+        f_h_target = img_f_h * 0.7
         l_h_target = img_l_h * 0.5
         r_h_target = img_r_h * 0.5
 
@@ -519,7 +530,7 @@ class Ramptracker:
             # print('right lane :', right_lane, right_curverad)
         
         ## Pseudo Stanley 오른쪽 차선 기준
-        if self.start_position == 0:
+        if self.start_position == 0 or self.start_position == 2:
             if check_right_f:
                 frl_ref = 470
                 ls_ref = 390
@@ -567,6 +578,8 @@ class Ramptracker:
                         steer = gain_cte * cte + gain_curv / right_curverad
                         steer = max(min(steer, 20.0), -20.0)
                         self.steer = steer
+                if self.start_position == 0:
+                    self.steer = -self.steer
 
                 self.check_left_f = check_left_f
                 self.check_left_r = check_left_r
@@ -577,56 +590,56 @@ class Ramptracker:
                 self.cte_l = cte_l
                 self.cte_r = cte_r
             
-            if self.start_position == 1:
-                if check_left_f:
-                    fll_ref = 160
-                    ls_ref = 390
-                    rs_ref = 90
-                    cte = (fll_ref-left_lane)  # 높을수록 붙어서감
-                    gain_cte = 0.3      # 높을수록 민감
-                    gain_curv = -1      # 높을수록 민감
-                    gain_cte_l = 0.1
-                    gain_cte_r = 0.1
-                    steer = 0.0
+        elif self.start_position == 1:
+            if check_left_f:
+                fll_ref = 160
+                ls_ref = 390
+                rs_ref = 90
+                cte = (fll_ref-left_lane)  # 높을수록 붙어서감
+                gain_cte = 0.3      # 높을수록 민감
+                gain_curv = -1      # 높을수록 민감
+                gain_cte_l = 0.1
+                gain_cte_r = 0.1
+                steer = 0.0
 
-                    if check_right_l:
-                        cte_l = (ls_ref - left_sidelane)
-                        if cte_l < 60:
-                            steer = gain_cte * cte + gain_curv / left_curverad - cte_l*gain_cte_l
-                            steer = max(min(steer, 20.0), -20.0)
-                            # self.steer = steer
-
-                        else:
-                            steer = gain_cte * cte + gain_curv / left_curverad
-                            steer = max(min(steer, 20.0), -20.0)
-                            self.steer = steer
-
-                        if check_left_r:
-                            cte_r = (rs_ref - right_sidelane)
-                            if cte_r < 60:
-                                steer = steer + cte_r*gain_cte_r
-                                steer = max(min(steer, 20.0), -20.0)
-                                self.steer = steer
+                if check_right_l:
+                    cte_l = (ls_ref - left_sidelane)
+                    if cte_l < 60:
+                        steer = gain_cte * cte + gain_curv / left_curverad - cte_l*gain_cte_l
+                        steer = max(min(steer, 20.0), -20.0)
+                        self.steer = -steer
 
                     else:
-                        if check_left_r:
-                            steer = gain_cte * cte + gain_curv / left_curverad
-                            steer = max(min(steer, 20.0), -20.0)
-                            self.steer = steer
+                        steer = gain_cte * cte + gain_curv / left_curverad
+                        steer = max(min(steer, 20.0), -20.0)
+                        self.steer = -steer
 
-                            cte_r = (rs_ref - right_sidelane)
-                            if cte_r < 60:
-                                steer = steer + cte_r*gain_cte_r
-                                steer = max(min(steer, 20.0), -20.0)
-                                self.steer = steer
-                        else:
-                            steer = gain_cte * cte + gain_curv / left_curverad
+                    if check_left_r:
+                        cte_r = (rs_ref - right_sidelane)
+                        if cte_r < 60:
+                            steer = steer + cte_r*gain_cte_r
                             steer = max(min(steer, 20.0), -20.0)
-                            self.steer = steer
-            
-                self.is_front = False
-                self.is_left = False
-                self.is_right = False
+                            self.steer = -steer
+
+                else:
+                    if check_left_r:
+                        steer = gain_cte * cte + gain_curv / left_curverad
+                        steer = max(min(steer, 20.0), -20.0)
+                        self.steer = steer
+
+                        cte_r = (rs_ref - right_sidelane)
+                        if cte_r < 60:
+                            steer = steer + cte_r*gain_cte_r
+                            steer = max(min(steer, 20.0), -20.0)
+                            self.steer = -steer
+                    else:
+                        steer = gain_cte * cte + gain_curv / left_curverad
+                        steer = max(min(steer, 20.0), -20.0)
+                        self.steer = -steer
+        
+            self.is_front = False
+            self.is_left = False
+            self.is_right = False
         
         else:
             return None
@@ -691,7 +704,7 @@ class Ramptracker:
         print('turn point distance: None')
         print('speed: {:.3}'.format(self.cur_speed))
         print('steer: {:.3}'.format(self.cur_steer))
-        print('control state: ramp')
+        print('control state: ramp {:}'.format(self.control_state))
         print('cte: {:.3}'.format(self.cte))
         print('cte_l')
         if self.check_right_l:
@@ -708,6 +721,7 @@ class Ramptracker:
         else:
             print('None')
             print(self.right_sidelane)
+        print(self.start_position)
         print("-----------------------")
         
         self.is_cur_speed = False

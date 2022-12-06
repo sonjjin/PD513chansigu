@@ -2,7 +2,7 @@
 #-*- coding: utf-8 -*-
 
 from ramp_tracker import Ramptracker
-from parking_final_3 import Parking
+from parking_final_2 import Parking
 from final_stop import Finalstop
 import rospy
 import os
@@ -17,7 +17,7 @@ if __name__ == '__main__':
         os.makedirs(save_path+'/path_w_car')
     rospy.init_node('main')
     r = rospy.Rate(20)
-    rt = Ramptracker(start_position = 0) # 0: right., 1: left
+    rt = Ramptracker(start_position = 0) # 1: look right, 0: look left, 2: both lane
     pc = Parking(save_path)
     fs = Finalstop(save_path)
     control_state = 0

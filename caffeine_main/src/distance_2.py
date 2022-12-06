@@ -58,7 +58,7 @@ class find_distance():
     
     def distance(self):
         try:
-            # print(self.turnpoint[0][0])
+            # print(self.turnpoint[0][2])
             # print(self.turnpoint[1][0])
 
             if self.is_vehicle_pose and self.is_parkinglot_pose:
