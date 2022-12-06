@@ -249,9 +249,30 @@ class Parking:
                         # rospy.sleep(3)
                         self.speed = 0
                         self.control_map = self.control_map + 1
-                        time.sleep(4)
+                        time.sleep(2)
 
                     elif self.turn_dis[0] < 70 and self.turnpoint[0][2] == 22:
+                        self.control_map = self.control_map + 1
+                        self.steer = self.cur_steer
+                        # rospy.sleep(3)
+                        self.speed = 0
+                        time.sleep(2)
+                        
+                    elif self.turn_dis[0] < 70 and self.turnpoint[0][2] == 23:
+                        self.control_map = self.control_map + 1
+                        self.steer = self.cur_steer
+                        # rospy.sleep(3)
+                        self.speed = 0
+                        time.sleep(2)
+                    
+                    elif self.turn_dis[0] < 70 and self.turnpoint[0][2] == 24:
+                        self.control_map = self.control_map + 1
+                        self.steer = self.cur_steer
+                        # rospy.sleep(3)
+                        self.speed = 0
+                        time.sleep(2)
+                    
+                    elif self.turn_dis[0] < 70 and self.turnpoint[0][2] == 25:
                         self.control_map = self.control_map + 1
                         self.steer = self.cur_steer
                         # rospy.sleep(3)
@@ -281,6 +302,12 @@ class Parking:
             elif self.turnpoint[0][2] == 21:
                 th = 100
             elif self.turnpoint[0][2] == 22:
+                th = 100
+            elif self.turnpoint[0][2] == 23:
+                th = 100
+            elif self.turnpoint[0][2] == 24:
+                th = 100
+            elif self.turnpoint[0][2] == 25:
                 th = 100
 
             if self.is_pv_dis and self.pv_dis < th and self.pv_dis > 10:
