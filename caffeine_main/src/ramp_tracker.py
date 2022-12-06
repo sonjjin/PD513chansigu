@@ -659,7 +659,7 @@ class Ramptracker:
             if self.control_state == 1:
                 self.steer = self.cur_steer
                 self.iter += 1
-            if self.iter > 15:
+            if self.iter > 10:
                 self.control_state = 2
                 # self.pub_ctrl_motor.publish(0)
             
