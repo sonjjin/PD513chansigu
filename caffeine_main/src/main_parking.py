@@ -16,11 +16,11 @@ if __name__ == '__main__':
         os.makedirs(save_path+'/roi')
         os.makedirs(save_path+'/path_w_car')
     rospy.init_node('main')
-    r = rospy.Rate(15)
-    rt = Ramptracker(start_position = 2) # 1: look right, 0: look left, 2: both lane
+    r = rospy.Rate(20)
+    rt = Ramptracker(start_position = 0) # 1: look right, 0: look left, 2: both lane
     pc = Parking(save_path)
     fs = Finalstop(save_path)
-    control_state = 2
+    control_state = 0
     
     while not rospy.is_shutdown():   
         if control_state == 0 or control_state == 1:     
@@ -30,7 +30,7 @@ if __name__ == '__main__':
             
         elif control_state == 2 or control_state == 3:
             # print(control_state)
-            control_state = pc.process()
+            conrol_state = pc.process()
             r.sleep()
 
         elif control_state == 4 or control_state == 5:

@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 import math as m
 from cv_bridge import CvBridge
-from utils import hsv
+from utils import *
 import time
 
 import os
@@ -23,23 +23,23 @@ class Parking:
         self.sub_parking_path1 = rospy.Subscriber('/img_w_path1', Image, self.callback_img_path1) # MATLAB
         self.sub_parking_path2 = rospy.Subscriber('/img_w_path2', Image, self.callback_img_path2) # MATLAB
         self.sub_parking_path3 = rospy.Subscriber('/img_w_path3', Image, self.callback_img_path3) # MATLAB
-        self.img_front_sub = rospy.Subscriber('/front_cam/image_raw', Image, self.img_front_callback)
-        self.img_back_sub = rospy.Subscriber('/rear_cam/image_raw', Image, self.img_back_callback)
         
         self.sub_proprties = rospy.Subscriber('/properties', Float32MultiArray, self.callback_properties)
         self.sub_pv_distance = rospy.Subscriber('/vehicle_dis', Float32, self.callback_pv_dis)
         self.sub_turn_distance = rospy.Subscriber('/turn_dis', Float32MultiArray, self.callback_turn_dis)
         self.sub_turnpoint = rospy.Subscriber('/turnpoint', Float32MultiArray, self.callback_turnpoint)
+
     
         self.sub_cur_speed = rospy.Subscriber('/arduino_ctrl/ctrl_motor', Float32, self.callback_speed)
         self.sub_cur_steer = rospy.Subscriber('/arduino_ctrl/ctrl_servo', Float32, self.callback_steer)
         
         self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
         self.pub_ctrl_servo = rospy.Publisher('/arduino_ctrl/ctrl_servo', Float32, queue_size=1)
+        self.pub_ctrl_map = rospy.Publisher('/control_map', Float32, queue_size=1)
+
         
         self.save_path = save_path
         self.local_coord = np.zeros([465, 443])
-        self.control_state = 2
         
         # properties
         self.pv_dis = None
@@ -50,7 +50,7 @@ class Parking:
 
         self.properties = None
         self.is_properties = False
-        
+
         self.turnpoint = None
         self.is_turnpoint = False
         
@@ -64,13 +64,7 @@ class Parking:
         self.img_parking_path3 = None
         self.is_parking_path3 = False
         
-        # svm images
-        self.cur_img_front = None
-        self.is_cur_img_front = False
-        self.cur_img_rear = None
-        self.is_cur_img_rear = False
-        
-        # image_
+        # image
         self.img_map = None
         self.map_W = 465
         self.map_H = 443
@@ -89,41 +83,13 @@ class Parking:
         self.img_roi = None
         self.iter = 0
         self.cte = 0
-        self.control_count = 0
         self.start_time = time.time()
         
         self.control_map = 1 # 1: path1, 2: path2, 3: path3
         self.parking_finish = False
-
-
-        self.forward_src = np.float32([
-            (125, 180),
-            (0, 440),
-            (500, 180),
-            (640, 440)
-        ])
-
-        self.backward_src = np.float32([
-            (125, 180),
-            (0, 440),
-            (500, 180),
-            (640, 440)
-        ])
-
-        self.forward_dst = np.float32([
-            (70, 90),
-            (170, 440),
-            (530, 90),
-            (470, 445)
-        ])
-        
-        self.backward_dst = np.float32([
-            (90, 90),
-            (180, 440),
-            (530, 85),
-            (460, 445)
-        ])    
-
+        self.control_state = 2
+        self.control_count = 0
+        self.wait = 0
 
     """
     callback functions
@@ -148,20 +114,6 @@ class Parking:
             self.img_parking_path3 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             # print("front",  self.img_parking_path3.shape) 
             self.is_parking_path3 = True
-            
-    def img_front_callback(self, data):
-        if not self.is_cur_img_front:
-            img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
-            self.cur_img_front = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            # print("front",  self.cur_img_front.dtype) 
-            self.is_cur_img_front = True
-    
-    def img_back_callback(self, data):
-        if not self.is_cur_img_rear:
-            img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8')
-            self.cur_img_rear = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
-            # print("rear", self.cur_img_back.dtype) 
-            self.is_cur_img_rear = True
     
     def callback_pv_dis(self, data):
         if not self.is_pv_dis:
@@ -193,40 +145,6 @@ class Parking:
             self.turnpoint =  np.array(data.data).reshape([data.layout.dim[0].size, data.layout.dim[1].size])
             self.is_turnpoint = True
 
-
-    def front(self, img):
-        IMAGE_H, IMAGE_W, _ = img.shape
-        
-        src = self.forward_src
-        dst = self.forward_dst
-        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
-        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
-
-        warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))
-        output = warped_img[90:,:-10]
-        return output
-
-
-    def rear(self, img):
-        IMAGE_H, IMAGE_W, _ = img.shape
-    
-        #img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
-        src = self.backward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
-        dst = self.backward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
-        #src = np.float32([[210,115], [210,180], [150,120], [150,175]])
-        #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
-        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
-        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
-    
-        IMAGE_H, IMAGE_W, _ = img.shape
-    
-        warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
-        output = warped_img[90:,:]
-        output = cv2.rotate(output, cv2.ROTATE_180)
-        return output#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
-
-    
-    
     def get_roi(self, target):
         cX = target[0]
         cY = target[1]
@@ -253,72 +171,12 @@ class Parking:
 
         M = cv2.getRotationMatrix2D((self.map_W/2, self.map_H/2), agl, 1.0)
         rotate_img = cv2.warpAffine(img_trans_path, M, (self.map_W, self.map_H))
-
         roi = rotate_img
         roi = cv2.rotate(roi, cv2.ROTATE_90_CLOCKWISE)
         roi = roi[:roi.shape[0]/2,:]
 
         return roi
     
-    '''
-    Stop lane detection 
-    input: warp image
-    '''
-    
-    def stop_lane(self, img):
-
-        img_hsv = hsv(img, 'yellow')
-        img_bin = img_hsv
-        nwindows = 10
-        margin = 20
-        minpix = 50
-
-        window_width = np.int64(img_bin.shape[1]//nwindows)
-
-        histogram = np.sum(img_bin[:,:img_bin.shape[1]-np.int32(img_bin.shape[1]/2)], axis=1)
-        his_max = np.max(histogram)
-        print(his_max)
-        
-        if his_max < 10000:
-            return
-        top_basey = np.argmax(histogram[:])
-
-        nonzero = img_bin.nonzero()
-        nonzeroy = np.array(nonzero[1])
-        nonzerox = np.array(nonzero[0])
-
-        top_current = top_basey
-        top_lane_inds = []
-
-        for window in range(nwindows):
-
-            win_x_low = img_bin.shape[1] - (window+1)*window_width
-            win_x_high = img_bin.shape[1] - window*window_width
-
-            win_top_low = top_current - margin
-            win_top_high = top_current + margin 
-
-            good_top_inds = ((nonzerox >= win_top_low) & (nonzerox < win_top_high) & (nonzeroy >= win_x_low) & (nonzeroy < win_x_high)).nonzero()[0]
-            top_lane_inds.append(good_top_inds)
-
-
-            if(len(good_top_inds) > minpix):
-                top_current = np.int32(np.mean(nonzerox[good_top_inds]))
-                
-
-        top_lane_inds = np.concatenate(top_lane_inds)
-
-        topx = nonzerox[top_lane_inds]
-        topy = nonzeroy[top_lane_inds] 
-
-        top_fit = np.polyfit(topy, topx, 1)
-
-        ref_x = np.int32(img_bin.shape[1]/2)
-        ref_y = np.int32(top_fit[0]*ref_x + top_fit[1])
-        print(ref_y)
-        if ref_y > 330:
-            self.control_state = 3
-            
     def get_steer(self):
         if self.is_properties:
             try:
@@ -362,14 +220,20 @@ class Parking:
                 if self.control_map == 2:
                     gain_cte = 0.6
                     steer = gain_cte * cte + gain_curv / front_curverad
-                    self.steer = -steer
+                    if self.turnpoint[0][2] == 21:
+                        self.steer = -(steer+4)
+                    elif self.turnpoint[0][2] == 22:
+                        self.steer = -(steer+2)
+                        # self.steer = -20
+                    else:
+                        self.steer = -steer
+
                     steer = max(min(steer, 20.0), -20.0)
                 self.cte = cte
                 self.is_properties = False
             
             except:
                 self.steer = self.cur_steer
-                self.is_properties = False
 
         else:
             print('none properties')
@@ -378,25 +242,54 @@ class Parking:
     def get_speed(self):
         try:
             if self.is_turn_dis:
+                print('a')
                 if self.control_map == 1 and self.turn_dis[0] != -1:
-                    if self.turn_dis[0] < 50:
+                    if self.turn_dis[0] < 70 and self.turnpoint[0][2] == 21:
+                        self.steer = self.cur_steer
+                        # rospy.sleep(3)
                         self.speed = 0
                         self.control_map = self.control_map + 1
-                        time.sleep(1)
+                        time.sleep(4)
+
+                    elif self.turn_dis[0] < 70 and self.turnpoint[0][2] == 22:
+                        self.control_map = self.control_map + 1
+                        self.steer = self.cur_steer
+                        # rospy.sleep(3)
+                        self.speed = 0
+                        time.sleep(2)
+
 
                 elif self.control_map == 2 and self.turn_dis[0] < 80 and self.turn_dis[0] != -1:
                     self.speed = -150
                     if self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
                         self.control_map = self.control_map + 1
                         self.speed = 0
-                        time.sleep(1)
                 
                 elif self.control_map == 3 and self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
                     self.speed = 150
-                    
-            elif self.is_pv_dis and self.pv_dis < 70 and self.pv_dis > 20:
-                self.speed = 0
+    
+            if self.turnpoint[0][2] == 11:
+                th = 60
+            elif self.turnpoint[0][2] == 12:
+                th = 80
+            elif self.turnpoint[0][2] == 13:
+                th = 80
+            elif self.turnpoint[0][2] == 14:
+                th = 80
+            elif self.turnpoint[0][2] == 15:
+                th = 60
+            elif self.turnpoint[0][2] == 21:
+                th = 100
+            elif self.turnpoint[0][2] == 22:
+                th = 100
+
+            if self.is_pv_dis and self.pv_dis < th and self.pv_dis > 10:
+                # print('b')
+                # self.speed = self.cur_speed
+                # self.steer = self.cur_steer
+                # self.speed = 0
                 self.steer = 0
+                self.control_state = 3
                 self.parking_finish = True
         except:
             self.speed = self.cur_speed
@@ -408,65 +301,76 @@ class Parking:
             self.is_parking_path2 = False
             self.is_parking_path3 = False
             self.iter = self.iter + 1
+            # print(self.control_state)
+            # print('x')
         
         else:
-            if self.control_state == 2:
-                if self.is_parking_path1:
-                    self.get_steer()
-                    self.get_speed()
-                    try:
-                        if self.turnpoint[0][2] // 10 == 2:
-                            if self.is_cur_img_rear:
-                                img = self.cur_img_rear
-                                img = self.rear(img)
-                        else:
-                            if self.is_cur_img_front:
-                                img = self.cur_img_front
-                                img = self.front(img)
-                        self.stop_lane(img)
-                    except:
-                        print('no imgs')
-                        
-                    print("-----------------------")
-                    print('goal distance: {:.3}'.format(self.pv_dis))
-                    print('turn point1 distance: {:.3}'.format(self.turn_dis[0]))
-                    print('turn point2 distance: {:.3}'.format(self.turn_dis[1]))
-                    print('speed: {:.3}'.format(self.cur_speed))
-                    print('steer: {:.3}'.format(self.cur_steer))
-                    print('control map: {}'.format(self.control_map))
-                    print('control state: parking {:}'.format(self.control_state))
-                    print("-----------------------")
-                    
-                    cv2.imshow('roi', self.img_roi)
-                    cv2.waitKey(1)          
+            # print(self.is_parking_path1, self.is_parking_path2, self.is_parking_path3)
+            # print(self.is_turn_dis)
+            # print('y')
+            if self.parking_finish:
+                self.pub_ctrl_motor.publish(self.speed)
+                self.pub_ctrl_servo.publish(self.steer)
 
-                else:
-                    print('wait for all receiving')
-                    
-                if self.steer is not None:
-                    self.pub_ctrl_servo.publish(self.steer)
+                return 4
 
-                if self.speed is not None:
-                    self.pub_ctrl_motor.publish(self.speed)
-                
-                self.is_cur_speed = False
-                self.is_cur_steer = False
-                self.is_turn_dis = False
-                self.is_pv_dis = False
-                self.is_cur_img_front = False
-                self.is_cur_img_rear = False
-                self.iter = self.iter + 1
-                            
-            if self.control_state == 3:
+            elif self.control_state == 3:
                 self.control_count = self.control_count + 1
+                # self.steer = 0
+                # self.speed = 0
+                if self.control_count > 15:
+                    self.control_state = 4
+
+
+            elif self.is_parking_path1:
+                self.start_time = time.time()
+                self.get_steer()
+                self.get_speed()
+
+                print("-----------------------")
+                print('goal distance: {:.3}'.format(self.pv_dis))
+                print('turn point1 distance: {:.3}'.format(self.turn_dis[0]))
+                print('turn point2 distance: {:.3}'.format(self.turn_dis[1]))
+                print('speed: {:.3}'.format(self.cur_speed))
+                print('steer: {:.3}'.format(self.cur_steer))
+                print('control map: {}'.format(self.control_map))
+                print('control state: parking')
+                print(self.control_state)
+                print("-----------------------")
                 
-            if self.control_count > 10:
-                self.control_state = 4
                 
+                cv2.imshow('roi', self.img_roi)
+                cv2.waitKey(1)
+                # self.iter = self.iter+1
+                self.is_agl = False                
+
+                # if self.parking_finish:
+                #     print('finish')
+                #     self.control_state = 4
+                #     return self.control_state
+            else:
+                print('wait for all receiving')
+                
+            if self.steer is not None:
+                self.pub_ctrl_servo.publish(self.steer)
+
+            if self.speed is not None:
+                self.pub_ctrl_motor.publish(self.speed)
+            
+            self.pub_ctrl_map.publish(self.control_map)
+            self.is_cur_speed = False
+            self.is_cur_steer = False
+            self.is_turn_dis = False
+            self.is_pv_dis = False
+            self.iter = self.iter + 1
+            # if self.control_state == 15:
+            #     return 2
         return self.control_state
 
 
 
+     
+        
 if __name__ == '__main__':
     save_path = '/home/hellobye/exp6'
     if not os.path.exists(save_path):

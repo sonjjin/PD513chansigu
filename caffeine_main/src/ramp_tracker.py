@@ -369,7 +369,7 @@ class Ramptracker:
             if self.start_position == 1:
                 midpoint = np.int64(histogram.shape[0]//2) + 50
                 if self.count > 40:
-                    self.start_position = 0
+                    self.start_position = 2
                     
             leftx_base = np.argmax(histogram[:midpoint])
             if leftx_base != 0:
@@ -496,7 +496,7 @@ class Ramptracker:
         img_f_h = img_f.shape[0]/2
         img_l_h = img_l.shape[0]/2
         img_r_h = img_r.shape[0]/2
-        f_h_target = img_f_h * 0.7
+        f_h_target = img_f_h * 0.8
         l_h_target = img_l_h * 0.5
         r_h_target = img_r_h * 0.5
 
@@ -640,6 +640,11 @@ class Ramptracker:
             self.is_front = False
             self.is_left = False
             self.is_right = False
+            self.check_left = False
+            self.check_left_f = False
+            self.check_left_r = False
+            self.check_right = False
+            self.check_right_l = False
         
         else:
             return None

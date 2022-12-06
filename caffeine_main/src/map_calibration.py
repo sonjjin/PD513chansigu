@@ -59,8 +59,9 @@ class map_calibaration():
                 # cv2.imwrite('./dddd.png', img_parkinglot)
                 # cv2.imshow('..', img_parkinglot)
                 img_parkinglot_hsv = hsv_parking(img_parkinglot, 'green')
-                
-                # cv2.waitKey(1)
+                cv2.imshow('.', img_parkinglot_hsv)
+                cv2.imwrite('/home/hellobye/exp6/cali.png', img_parkinglot_hsv)
+                cv2.waitKey(1)
                 label_parkinglot = label(img_parkinglot_hsv)
                 regions = regionprops(label_parkinglot)
                 center_point = []

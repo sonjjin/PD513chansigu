@@ -24,6 +24,7 @@ class Finalstop:
 
         self.sub_turnpoint = rospy.Subscriber('/turnpoint', Float32MultiArray, self.callback_turnpoint)
 
+
         self.sub_cur_speed = rospy.Subscriber('/arduino_ctrl/ctrl_motor', Float32, self.callback_speed)
         self.sub_cur_steer = rospy.Subscriber('/arduino_ctrl/ctrl_servo', Float32, self.callback_steer)
 
@@ -105,7 +106,7 @@ class Finalstop:
                     (480, 460)
                 ])
     
-        self.control_state = 0
+        self.control_state = 4
 
     # lane check
         self.check_left = False
@@ -121,7 +122,7 @@ class Finalstop:
         self.count = 0
         self.iter = 0
 
-        self.turnpoint = [(0,0,20),
+        self.turnpoint = [(0,0,10),
                           (0,0,0)]
         self.is_turnpoint = False
 
@@ -135,6 +136,7 @@ class Finalstop:
         self.cte = None
         self.cte_l = None
         self.cte_r = None
+        self.lane_count = 0
     '''
     image callback
     '''
@@ -287,7 +289,8 @@ class Finalstop:
         img_hsv = self.hsv(img, 'yellow')
         img_bin = img_hsv
         # out_img = cv2.cvtColor(img_bin, cv2.COLOR_GRAY2BGR)
-        
+        cv2.imshow(',',img)
+        cv2.waitKey(1)
         nwindows = 10
         margin = 20
         minpix = 50
@@ -297,7 +300,7 @@ class Finalstop:
         # Take a histogram of the bottom half of the image
         histogram = np.sum(img_bin[:,:img_bin.shape[1]-np.int32(img_bin.shape[1]/2)], axis=1)
         his_max = np.max(histogram)
-        # print(his_max)
+        print(his_max)
         if his_max < 10000:
             return
 
@@ -344,7 +347,9 @@ class Finalstop:
         ref_x = np.int32(img_bin.shape[1]/2)
         ref_y = np.int32(top_fit[0]*ref_x + top_fit[1])
         print(ref_y)
-        if ref_y > 330:
+        if ref_y > 300:
+            # self.lane_count = self.lane_count + 1
+            # if self.lane_count > 100:
             self.control_state = 5
             
 
@@ -497,7 +502,7 @@ class Finalstop:
         img_f_h = img_f.shape[0]/2
         img_l_h = img_l.shape[0]/2
         img_r_h = img_r.shape[0]/2
-        f_h_target = img_f_h * 0.75
+        f_h_target = img_f_h * 0.9
         l_h_target = img_l_h * 0.5
         r_h_target = img_r_h * 0.5
 
@@ -531,53 +536,102 @@ class Finalstop:
             # print('right lane :', right_lane, right_curverad)
         
         ## Pseudo Stanley 오른쪽 차선 기준
-        if check_right_f:
-            frl_ref = 470
-            ls_ref = 390
-            rs_ref = 90
-            cte = (frl_ref-right_lane)  # 높을수록 붙어서감
-            gain_cte = 0.25      # 높을수록 민감
-            gain_curv = -1      # 높을수록 민감
-            gain_cte_l = 0.15
-            gain_cte_r = 0.15
-            steer = 0.0
-            cte_l = 0
-            cte_r = 0
+        if self.turnpoint[0][2] == 14 or self.turnpoint[0][2] == 15 or self.turnpoint[0][2] == 21:
+            if check_right_f:
+                frl_ref = 500
+                ls_ref = 390
+                rs_ref = 90
+                cte = (frl_ref-right_lane)  # 높을수록 붙어서감
+                gain_cte = 0.25      # 높을수록 민감
+                gain_curv = -1      # 높을수록 민감
+                gain_cte_l = 0.15
+                gain_cte_r = 0.15
+                steer = 0.0
+                cte_l = 0
+                cte_r = 0
 
-            if check_right_l:
-                cte_l = (ls_ref - left_sidelane)
-                if cte_l < 70:
-                    steer = gain_cte * cte + gain_curv / right_curverad - cte_l*gain_cte_l
-                    steer = max(min(steer, 20.0), -20.0)
-                    # self.steer = steer
+                if check_right_l:
+                    cte_l = (ls_ref - left_sidelane)
+                    if cte_l < 70:
+                        steer = gain_cte * cte + gain_curv / right_curverad - cte_l*gain_cte_l
+                        steer = max(min(steer, 20.0), -20.0)
+                        # self.steer = steer
 
-                else:
-                    steer = gain_cte * cte + gain_curv / right_curverad
-                    steer = max(min(steer, 20.0), -20.0)
-                    self.steer = steer
-
-                if check_left_r:
-                    cte_r = (rs_ref - right_sidelane)
-                    if cte_r < 60:
-                        steer = steer + cte_r*gain_cte_r
+                    else:
+                        steer = gain_cte * cte + gain_curv / right_curverad
                         steer = max(min(steer, 20.0), -20.0)
                         self.steer = steer
 
-            else:
-                if check_left_r:
-                    steer = gain_cte * cte + gain_curv / right_curverad
-                    steer = max(min(steer, 20.0), -20.0)
-                    self.steer = steer
+                    if check_left_r:
+                        cte_r = (rs_ref - right_sidelane)
+                        if cte_r < 60:
+                            steer = steer + cte_r*gain_cte_r
+                            steer = max(min(steer, 20.0), -20.0)
+                            self.steer = steer
 
-                    cte_r = (rs_ref - right_sidelane)
-                    if cte_r < 60:
-                        steer = steer + cte_r*gain_cte_r
+                else:
+                    if check_left_r:
+                        steer = gain_cte * cte + gain_curv / right_curverad
                         steer = max(min(steer, 20.0), -20.0)
                         self.steer = steer
+
+                        cte_r = (rs_ref - right_sidelane)
+                        if cte_r < 60:
+                            steer = steer + cte_r*gain_cte_r
+                            steer = max(min(steer, 20.0), -20.0)
+                            self.steer = steer
+                    else:
+                        steer = gain_cte * cte + gain_curv / right_curverad
+                        steer = max(min(steer, 20.0), -20.0)
+                        self.steer = steer       
+
+
+        elif self.turnpoint[0][2] == 11 or self.turnpoint[0][2] == 12 or self.turnpoint[0][2] == 13:
+            if check_left_f:
+                fll_ref = 160
+                ls_ref = 390
+                rs_ref = 90
+                cte = (fll_ref-left_lane)  # 높을수록 붙어서감
+                gain_cte = 0.3      # 높을수록 민감
+                gain_curv = -1      # 높을수록 민감
+                gain_cte_l = 0.1
+                gain_cte_r = 0.1
+                steer = 0.0
+
+                if check_right_l:
+                    cte_l = (ls_ref - left_sidelane)
+                    if cte_l < 60:
+                        steer = gain_cte * cte + gain_curv / left_curverad - cte_l*gain_cte_l
+                        steer = max(min(steer, 20.0), -20.0)
+                        self.steer = -steer
+
+                    else:
+                        steer = gain_cte * cte + gain_curv / left_curverad
+                        steer = max(min(steer, 20.0), -20.0)
+                        self.steer = -steer
+
+                    if check_left_r:
+                        cte_r = (rs_ref - right_sidelane)
+                        if cte_r < 60:
+                            steer = steer + cte_r*gain_cte_r
+                            steer = max(min(steer, 20.0), -20.0)
+                            self.steer = -steer
+
                 else:
-                    steer = gain_cte * cte + gain_curv / right_curverad
-                    steer = max(min(steer, 20.0), -20.0)
-                    self.steer = steer
+                    if check_left_r:
+                        steer = gain_cte * cte + gain_curv / left_curverad
+                        steer = max(min(steer, 20.0), -20.0)
+                        self.steer = steer
+
+                        cte_r = (rs_ref - right_sidelane)
+                        if cte_r < 60:
+                            steer = steer + cte_r*gain_cte_r
+                            steer = max(min(steer, 20.0), -20.0)
+                            self.steer = -steer
+                    else:
+                        steer = gain_cte * cte + gain_curv / left_curverad
+                        steer = max(min(steer, 20.0), -20.0)
+                        self.steer = -steer
 
             self.check_left_f = check_left_f
             self.check_left_r = check_left_r
@@ -586,14 +640,14 @@ class Finalstop:
             self.right_sidelane = right_sidelane
             self.cte = cte
             self.cte_l = cte_l
-            self.cte_r = cte_r          
+            self.cte_r = cte_r   
 
             return self.steer
         else:
             return None
     
     def process(self):
-        if self.is_front and self.is_left and self.is_right:
+        if self.is_front and self.is_left and self.is_right and self.is_back:
             self.start_time = time.time()
             
             img_f = self.cur_img_front
@@ -604,7 +658,6 @@ class Finalstop:
             img_r = self.side_right(img_r)
             img_f = self.front(img_f)
             img_b = self.rear(img_b)
-            
             if self.turnpoint[0][2] // 2 == 10:
                 check_right_f, check_left_f, right_fit_f, left_fit_f, img_f_lane = self.lane_detect(img_b ,2)
             else:
@@ -616,10 +669,10 @@ class Finalstop:
                 img_l_lane, check_right_l, right_fit_l,
                 img_r_lane, check_left_r, left_fit_r)
             
-            if self.turnpoint[0][2] //2 == 10:
+            if self.turnpoint[0][2] // 10 == 2:
                 self.stop_lane(img_f)
             else:
-                self.stop_lane(img_b)
+                self.stop_lane(img_f)
                 
             cv2.imshow("lane_detection", img_f_lane)
             cv2.imshow("lane_detection_left", cv2.resize(img_l_lane, dsize=(300,500)))
@@ -634,6 +687,7 @@ class Finalstop:
             self.steer = 0
             self.pub_ctrl_servo.publish(self.steer)
             self.pub_ctrl_motor.publish(self.speed)
+            return
             
         # dt = time.time()-self.start_time
         # print('time :', dt)
@@ -653,7 +707,7 @@ class Finalstop:
         print('turn point distance: None')
         print('speed: {:.3}'.format(self.cur_speed))
         print('steer: {:.3}'.format(self.cur_steer))
-        print('control state: ramp')
+        print('control state: final parking')
         print('cte: {:.3}'.format(self.cte))
         print('cte_l')
         if self.check_right_l:
@@ -670,6 +724,8 @@ class Finalstop:
         else:
             print('None')
             print(self.right_sidelane)
+        print(self.lane_count)
+        print(self.control_state)
         print("-----------------------")
         
         self.is_cur_speed = False
@@ -678,19 +734,25 @@ class Finalstop:
         self.is_left = False
         self.is_right = False
         self.is_back = False
+        self.is_turnpoint = False
         
         return self.control_state
      
         
 if __name__ == '__main__':
+    save_path = '/home/hellobye/exp6'
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        os.makedirs(save_path+'/roi')
+        os.makedirs(save_path+'/path_w_car')
     rospy.init_node('lane_detection')
     r = rospy.Rate(10)
-    fs = Finalstop()
+    fs = Finalstop(save_path)
     c = 0
     while not rospy.is_shutdown():
-        if c == 0:      
-            c = fs.process()
-            r.sleep()
+              
+        c = fs.process()
+        r.sleep()
         # print(c)
     
     rospy.spin()

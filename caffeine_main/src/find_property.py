@@ -33,8 +33,8 @@ class find_property():
         self.is_warp_matrix = False
         self.warp_matrix = None
         self.map_W = 465
-        # self.map_H = 443
-        self.map_H = 466
+        self.map_H = 443
+        # self.map_H = 466
 
         self.properties = np.zeros([3])
         self.is_red = False
@@ -76,7 +76,8 @@ class find_property():
             img_blue = hsv_parking(img_parkinglot, 'blue')
             cv2.imshow('parkinglot', img_parkinglot)
             cv2.waitKey(1)
-            cv2.imwrite(self.save_path + '/parkinglot' + str(self.iter).zfill(4) + '.png', img_parkinglot)
+            if self.iter < 10:
+                cv2.imwrite(self.save_path + '/parkinglot.png', img_parkinglot)
             # cv2.imwrite(self.save_path + '/img_red.png', img_red)
             # cv2.imwrite(self.save_path + '/img_blue.png', img_blue)
 
@@ -124,7 +125,6 @@ class find_property():
                 angle_deg = angle * 180 / m.pi
                 # print(self.properties)
 
-                
 
                 
             else:

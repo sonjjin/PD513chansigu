@@ -30,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument('-g', '--gui', action='store_true',
                         help='show a GUI of the camera stream')
     parser.add_argument(
-        '-u', '--url', default='http://192.168.0.101:4747/video', help='camera stream url to parse')
+        '-u', '--url', default='http://192.168.0.79:4747/video', help='camera stream url to parse')
     args = parser.parse_args(rospy.myargv()[1:])
 
     print("Opening Camera")
@@ -50,6 +50,8 @@ if __name__ == "__main__":
 
         if args.gui:
             cv2.imshow('Droid Camera', frame)
+            # cv2.imwrite('./Droid_Camera.png', frame)
+
             if cv2.waitKey(1) == 27:
                 break
 

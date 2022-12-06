@@ -132,7 +132,7 @@ void setup(){
   attachInterrupt(0, doEncoderA, CHANGE); // encoder pin on interrupt 0 (pin 2)
   attachInterrupt(1, doEncoderB, CHANGE); // encoder pin on interrupt 1 (pin 3)
 
-//  Serial.begin (115200);    // 아두이노 시리얼 통신
+  Serial.begin (57600);    // 아두이노 시리얼 통신
   prev_time_ms = millis();    // setup시 시간 측정  
   setSteer(0.0);     
   setMotorPwm(0);
