@@ -17,7 +17,7 @@ from std_msgs.msg import Float32MultiArray
 
 
 class find_property():
-    def __init__(self):
+    def __init__(self, save_path):
 
         self.cv_bridge = CvBridge()
 
@@ -37,6 +37,7 @@ class find_property():
         self.properties = np.zeros([3])
         self.is_red = False
         self.is_blue = False
+        self.save_path = save_path
         
     def callback_warp_matrix(self, data):
         if not self.is_warp_matrix:
@@ -71,8 +72,9 @@ class find_property():
             # cv2.imwrite(self.save_path + '/parkinglot.png',img_parkinglot)
             img_red = hsv_parking(img_parkinglot, 'red')
             img_blue = hsv_parking(img_parkinglot, 'blue')
-            cv2.imshow('.', img_parkinglot)
+            cv2.imshow('parkinglot', img_parkinglot)
             cv2.waitKey(1)
+            cv2.imwrite(self.save_path + '/parkinglot' + str(self.iter).zfill(4) + '.png', img_parkinglot)
             # cv2.imwrite(self.save_path + '/img_red.png', img_red)
             # cv2.imwrite(self.save_path + '/img_blue.png', img_blue)
 

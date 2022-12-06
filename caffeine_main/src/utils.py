@@ -66,3 +66,27 @@ def hsv_parking(img, color='yellow'):
         output[imask] = 255
         # mask = cv2.inRange(hsv, (80, 100, 145), (150, 255, 255))
         return output
+    
+def hsv(self, img, color='yellow'):
+
+        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+
+        if color == 'green':
+            mask = cv2.inRange(hsv, (25, 60, 50), (86, 255, 255))
+        elif color == 'red':
+            mask = cv2.inRange(hsv, (115, 100, 50), (130, 255, 255))
+        elif color == 'blue':
+            mask = cv2.inRange(hsv, (10, 150, 50), (30, 255, 255))
+        elif color == 'yellow':
+            mask = cv2.inRange(hsv, (40, 60, 80), (160, 255, 255))
+        elif color == 'black':
+            mask = cv2.inRange(hls, (0, 0, 0), (180, 100, 255))
+        
+        imask = mask > 0
+        temp = np.zeros_like(hsv, np.uint8)
+        temp[imask] = 255    
+        output = self.image_clean(temp[:,:,0])
+        # plt.imshow(cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
+
+        return output

@@ -12,21 +12,25 @@ import time
 import rospy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32
+from std_msgs.msg import Float32MultiArray
 
-
-class Ramptracker:
-    def __init__(self, start_position):
+class Finalstop:
+    def __init__(self):
         self.cv_bridge = CvBridge()
         self.img_front_sub = rospy.Subscriber('/front_cam/image_raw', Image, self.img_front_callback)
         self.img_left_sub = rospy.Subscriber('/left_cam/image_raw', Image, self.img_left_callback)
         self.img_right_sub = rospy.Subscriber('/right_cam/image_raw', Image, self.img_right_callback)
         self.img_back_sub = rospy.Subscriber('/rear_cam/image_raw', Image, self.img_back_callback)
 
+        self.sub_turnpoint = rospy.Subscriber('/turnpoint', Float32MultiArray, self.callback_turnpoint)
+
         self.sub_cur_speed = rospy.Subscriber('/arduino_ctrl/ctrl_motor', Float32, self.callback_speed)
         self.sub_cur_steer = rospy.Subscriber('/arduino_ctrl/ctrl_servo', Float32, self.callback_steer)
 
         self.pub_ctrl_servo = rospy.Publisher('/arduino_ctrl/ctrl_servo', Float32, queue_size=1)
         self.pub_ctrl_motor = rospy.Publisher('/arduino_ctrl/ctrl_motor', Float32, queue_size=1)
+
+
 
         self.is_front = False
         self.is_left = False
@@ -43,14 +47,7 @@ class Ramptracker:
         self.is_cur_steer = False
         self.cur_steer = None
         self.turn_right = True # turn right: true, turn left: false
-        self.start_position = start_position # 0: right, 1: left
-        
-        ## 테스트용 ##
-        # path = '/home/juntae/catkin_ws/src/caffeine/src/seq/front/'
-        # file = '00.png'
-        # img_front_array = np.fromfile(path+file, np.uint8)
-        # self.cur_img_front = cv2.imdecode(img_front_array, cv2.IMREAD_COLOR)
-        # self.is_front = True
+
 
         self.forward_src = np.float32([
                     (125, 180),
@@ -105,9 +102,13 @@ class Ramptracker:
 
         self.m_per_pixel = 0.00252
         self.steer = None
-
+        self.speed = None
+        
         self.count = 0
         self.iter = 0
+
+        self.turnpoint = None
+        self.is_turnpoint = False
 
         self.start_time = time.time()
 
@@ -145,6 +146,7 @@ class Ramptracker:
         self.cur_img_back = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
         # print("rear", self.cur_img_back.dtype) 
         self.is_back = True
+        
     def callback_speed(self, data):
         if not self.is_cur_speed:
             self.cur_speed = data.data
@@ -154,6 +156,12 @@ class Ramptracker:
         if not self.is_cur_steer:
             self.cur_steer = data.data
             self.is_cur_steer = True
+    
+    def callback_turnpoint(self, data):
+        if not self.is_turnpoint:
+            self.turnpoint =  np.array(data.data).reshape([data.layout.dim[0].size, data.layout.dim[1].size])
+            self.is_turnpoint = True
+            
     '''
     hsv and image detetion
     '''
@@ -237,6 +245,25 @@ class Ramptracker:
         # warped_img = cv2.warpPerspective(img, M, (IMAGE_H, IMAGE_W)) # Image warping
         return output 
         
+        
+    def rear(self, img):
+        IMAGE_H, IMAGE_W, _ = img.shape
+    
+        #img = np.concatenate([np.zeros((400,250,3)).astype(np.uint8),img,np.zeros((400,250,3)).astype(np.uint8)],1)
+        src = self.backward_src#np.float32([[249, 399], [549, 399], [289, 0], [509, 0]])
+        dst = self.backward_dst#np.float32([[279, 399], [519, 399], [0, 0], [799, 0]])
+        #src = np.float32([[210,115], [210,180], [150,120], [150,175]])
+        #dst = np.float32([[210,115], [210,180], [150,115], [150,180]])
+        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+    
+        IMAGE_H, IMAGE_W, _ = img.shape
+    
+        warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H))#[:300] # Image warping
+        output = warped_img[90:,:]
+        output = cv2.rotate(output, cv2.ROTATE_180)
+        return output#cv2.resize(warped_img[200:,100:-100], dsize=(800, 400),interpolation=cv2.INTER_LINEAR)#warped_img
+        
     '''
     Stop lane detection 
     input: warp image
@@ -298,33 +325,14 @@ class Ramptracker:
         ### TO-DO: Fit a second order polynomial to each using `np.polyfit` ###
         top_fit = np.polyfit(topy, topx, 1)
         # bottom_fit = np.polyfit(bottomy, bottomx, 1)
-        # print(bottom_fit)
 
-        # plotx = np.linspace(0, img_bin.shape[1]-1, img_bin.shape[1])
-        # # print(plotx)
-        # try:
-        #     top_fity = top_fit[0]*plotx + top_fit[1]
-        #     # bottom_fity = bottom_fit[0]*plotx + bottom_fit[1]
-        # except TypeError:
-        #     # Avoids an error if `left` and `right_fit` are still none or incorrect
-        #     print('The function failed to fit a line!')
-        #     top_fity = 1*plotx**2 + 1*plotx
-            # bottom_fity = 1*plotx**2 + 1*plotx
         ref_x = np.int32(img_bin.shape[1]/2)
         ref_y = np.int32(top_fit[0]*ref_x + top_fit[1])
         print(ref_y)
         if ref_y > 330:
-            self.control_state = 1
+            self.control_state = 5
             
-        # ## Visualization ##
-        # # Colors in the left and right lane regions
-        # out_img[topx, topy] = [255, 0, 0]
-        
 
-        # plt.plot(plotx, top_fity, color='yellow')
-        # # plt.plot(plotx, bottom_fity, color='yellow')
-        # plt.imshow(out_img) 
-    
     
     
     '''
@@ -355,14 +363,7 @@ class Ramptracker:
             histogram = np.sum(img_bin[20:], axis=0)
 
             # find lane
-            """it depends on the start position"""
-            if self.start_position == 0:
-                midpoint = np.int64(histogram.shape[0]//2) - 100
-            if self.start_position == 1:
-                midpoint = np.int64(histogram.shape[0]//2) + 50
-                if self.count > 100:
-                    self.start_position = 0
-                    
+            midpoint = np.int64(histogram.shape[0]//2)
             leftx_base = np.argmax(histogram[:midpoint])
             if leftx_base != 0:
                 self.check_left = True
@@ -410,6 +411,7 @@ class Ramptracker:
                     if(len(good_right_inds) > minpix):
                         rightx_current = np.int64(np.mean(nonzerox[good_right_inds]))
                 
+                    
             if self.check_left == True:
                 left_lane_inds = np.concatenate(left_lane_inds)
                 leftx = nonzerox[left_lane_inds]
@@ -457,11 +459,6 @@ class Ramptracker:
                     # plt.plot(right_fitx, ploty, color='yellow')
             
             img_viz = np.vstack((img, img_rgb))
-            # cv2.imwrite('../results/seq/' + str(self.count) + '.png', img_rgb)
-            # plt.savefig('../results/seq/' + str(self.count) + '.png')
-
-            # plt.imshow(img)        
-            # plt.clf() 
             
             self.count += 1   
             # self.check_left = False
@@ -519,115 +516,64 @@ class Ramptracker:
             # print('right lane :', right_lane, right_curverad)
         
         ## Pseudo Stanley 오른쪽 차선 기준
-        if self.start_position == 0:
-            if check_right_f:
-                frl_ref = 470
-                ls_ref = 390
-                rs_ref = 90
-                cte = (frl_ref-right_lane)  # 높을수록 붙어서감
-                gain_cte = 0.25      # 높을수록 민감
-                gain_curv = -1      # 높을수록 민감
-                gain_cte_l = 0.15
-                gain_cte_r = 0.15
-                steer = 0.0
-                cte_l = 0
-                cte_r = 0
+        if check_right_f:
+            frl_ref = 470
+            ls_ref = 390
+            rs_ref = 90
+            cte = (frl_ref-right_lane)  # 높을수록 붙어서감
+            gain_cte = 0.25      # 높을수록 민감
+            gain_curv = -1      # 높을수록 민감
+            gain_cte_l = 0.15
+            gain_cte_r = 0.15
+            steer = 0.0
+            cte_l = 0
+            cte_r = 0
 
-                if check_right_l:
-                    cte_l = (ls_ref - left_sidelane)
-                    if cte_l < 70:
-                        steer = gain_cte * cte + gain_curv / right_curverad - cte_l*gain_cte_l
-                        steer = max(min(steer, 20.0), -20.0)
-                        # self.steer = steer
-
-                    else:
-                        steer = gain_cte * cte + gain_curv / right_curverad
-                        steer = max(min(steer, 20.0), -20.0)
-                        self.steer = steer
-
-                    if check_left_r:
-                        cte_r = (rs_ref - right_sidelane)
-                        if cte_r < 60:
-                            steer = steer + cte_r*gain_cte_r
-                            steer = max(min(steer, 20.0), -20.0)
-                            self.steer = steer
+            if check_right_l:
+                cte_l = (ls_ref - left_sidelane)
+                if cte_l < 70:
+                    steer = gain_cte * cte + gain_curv / right_curverad - cte_l*gain_cte_l
+                    steer = max(min(steer, 20.0), -20.0)
+                    # self.steer = steer
 
                 else:
-                    if check_left_r:
-                        steer = gain_cte * cte + gain_curv / right_curverad
+                    steer = gain_cte * cte + gain_curv / right_curverad
+                    steer = max(min(steer, 20.0), -20.0)
+                    self.steer = steer
+
+                if check_left_r:
+                    cte_r = (rs_ref - right_sidelane)
+                    if cte_r < 60:
+                        steer = steer + cte_r*gain_cte_r
                         steer = max(min(steer, 20.0), -20.0)
                         self.steer = steer
 
-                        cte_r = (rs_ref - right_sidelane)
-                        if cte_r < 60:
-                            steer = steer + cte_r*gain_cte_r
-                            steer = max(min(steer, 20.0), -20.0)
-                            self.steer = steer
-                    else:
-                        steer = gain_cte * cte + gain_curv / right_curverad
+            else:
+                if check_left_r:
+                    steer = gain_cte * cte + gain_curv / right_curverad
+                    steer = max(min(steer, 20.0), -20.0)
+                    self.steer = steer
+
+                    cte_r = (rs_ref - right_sidelane)
+                    if cte_r < 60:
+                        steer = steer + cte_r*gain_cte_r
                         steer = max(min(steer, 20.0), -20.0)
                         self.steer = steer
+                else:
+                    steer = gain_cte * cte + gain_curv / right_curverad
+                    steer = max(min(steer, 20.0), -20.0)
+                    self.steer = steer
 
-                self.check_left_f = check_left_f
-                self.check_left_r = check_left_r
-                self.check_right_l = check_right_l
-                self.left_sidelane = left_sidelane
-                self.right_sidelane = right_sidelane
-                self.cte = cte
-                self.cte_l = cte_l
-                self.cte_r = cte_r
-            
-            if self.start_position == 1:
-                if check_left_f:
-                    fll_ref = 160
-                    ls_ref = 390
-                    rs_ref = 90
-                    cte = (fll_ref-left_lane)  # 높을수록 붙어서감
-                    gain_cte = 0.3      # 높을수록 민감
-                    gain_curv = -1      # 높을수록 민감
-                    gain_cte_l = 0.1
-                    gain_cte_r = 0.1
-                    steer = 0.0
+            self.check_left_f = check_left_f
+            self.check_left_r = check_left_r
+            self.check_right_l = check_right_l
+            self.left_sidelane = left_sidelane
+            self.right_sidelane = right_sidelane
+            self.cte = cte
+            self.cte_l = cte_l
+            self.cte_r = cte_r          
 
-                    if check_right_l:
-                        cte_l = (ls_ref - left_sidelane)
-                        if cte_l < 60:
-                            steer = gain_cte * cte + gain_curv / left_curverad - cte_l*gain_cte_l
-                            steer = max(min(steer, 20.0), -20.0)
-                            # self.steer = steer
-
-                        else:
-                            steer = gain_cte * cte + gain_curv / left_curverad
-                            steer = max(min(steer, 20.0), -20.0)
-                            self.steer = steer
-
-                        if check_left_r:
-                            cte_r = (rs_ref - right_sidelane)
-                            if cte_r < 60:
-                                steer = steer + cte_r*gain_cte_r
-                                steer = max(min(steer, 20.0), -20.0)
-                                self.steer = steer
-
-                    else:
-                        if check_left_r:
-                            steer = gain_cte * cte + gain_curv / left_curverad
-                            steer = max(min(steer, 20.0), -20.0)
-                            self.steer = steer
-
-                            cte_r = (rs_ref - right_sidelane)
-                            if cte_r < 60:
-                                steer = steer + cte_r*gain_cte_r
-                                steer = max(min(steer, 20.0), -20.0)
-                                self.steer = steer
-                        else:
-                            steer = gain_cte * cte + gain_curv / left_curverad
-                            steer = max(min(steer, 20.0), -20.0)
-                            self.steer = steer
-            
-                self.is_front = False
-                self.is_left = False
-                self.is_right = False
-        
+            return self.steer
         else:
             return None
     
@@ -642,37 +588,38 @@ class Ramptracker:
             img_l = self.side_left(img_l)
             img_r = self.side_right(img_r)
             img_f = self.front(img_f)
+            img_b = self.rear(img_b)
             
-            if self.control_state == 0:
+            if self.turnpoint[0][2] // 2 == 10:
+                check_right_f, check_left_f, right_fit_f, left_fit_f, img_f_lane = self.lane_detect(img_b ,2)
+            else:
                 check_right_f, check_left_f, right_fit_f, left_fit_f, img_f_lane = self.lane_detect(img_f ,2)
-                check_right_l, check_left_l, right_fit_l, left_fit_l, img_l_lane = self.lane_detect(img_l ,1)
-                check_right_r, check_left_r, right_fit_r, left_fit_r, img_r_lane = self.lane_detect(img_r ,1)
-                self.get_steer(
-                    img_f_lane, check_right_f, check_left_f, right_fit_f, left_fit_f,
-                    img_l_lane, check_right_l, right_fit_l,
-                    img_r_lane, check_left_r, left_fit_r)
-                self.stop_lane(img_f)
-                cv2.imshow("lane_detection", img_f_lane)
-                cv2.imshow("lane_detection_left", cv2.resize(img_l_lane, dsize=(300,500)))
-                cv2.imshow("lane_detection_right", cv2.resize(img_r_lane, dsize=(300,500)))
-                cv2.waitKey(1)
-            if self.control_state == 1:
-                self.steer = self.cur_steer
-                self.iter += 1
-            if self.iter > 15:
-                self.control_state = 2
-                # self.pub_ctrl_motor.publish(0)
+            check_right_l, check_left_l, right_fit_l, left_fit_l, img_l_lane = self.lane_detect(img_l ,1)
+            check_right_r, check_left_r, right_fit_r, left_fit_r, img_r_lane = self.lane_detect(img_r ,1)
+            self.get_steer(
+                img_f_lane, check_right_f, check_left_f, right_fit_f, left_fit_f,
+                img_l_lane, check_right_l, right_fit_l,
+                img_r_lane, check_left_r, left_fit_r)
             
-        if self.is_front and self.is_right:
-            img_b = self.cur_img_right
-            img_b = self.side_right(img_b)
-            # cv2.imshow('left', img_l)
-            # print(img_l.shape)
-            # print(self.count)
+            if self.turnpoint[0][2] //2 == 10:
+                self.stop_lane(img_f)
+            else:
+                self.stop_lane(img_b)
+                
+            cv2.imshow("lane_detection", img_f_lane)
+            cv2.imshow("lane_detection_left", cv2.resize(img_l_lane, dsize=(300,500)))
+            cv2.imshow("lane_detection_right", cv2.resize(img_r_lane, dsize=(300,500)))
+            cv2.waitKey(1)
 
         if self.steer is not None:
             self.pub_ctrl_servo.publish(self.steer)
 
+        if self.control_state == 5:
+            self.speed = 0
+            self.steer = 0
+            self.pub_ctrl_servo.publish(self.steer)
+            self.pub_ctrl_motor.publish(self.speed)
+            
         # dt = time.time()-self.start_time
         # print('time :', dt)
 
@@ -712,6 +659,10 @@ class Ramptracker:
         
         self.is_cur_speed = False
         self.is_cur_steer = False
+        self.is_front = False
+        self.is_left = False
+        self.is_right = False
+        self.is_back = False
         
         return self.control_state
      
@@ -719,11 +670,11 @@ class Ramptracker:
 if __name__ == '__main__':
     rospy.init_node('lane_detection')
     r = rospy.Rate(10)
-    rt = Ramptracker(start_position = 0)
+    fs = Finalstop()
     c = 0
     while not rospy.is_shutdown():
         if c == 0:      
-            c = rt.process()
+            c = fs.process()
             r.sleep()
         # print(c)
     

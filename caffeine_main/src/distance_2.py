@@ -16,7 +16,6 @@ class find_distance():
         self.sub_parking_point = rospy.Subscriber('/parking_point', Float32MultiArray, self.callback_parkinglot)
         self.sub_turnpoint = rospy.Subscriber('/turnpoint', Float32MultiArray, self.callback_turnpoint)
         self.sub_vehicle_spped = rospy.Subscriber('/arduino_ctrl/ctrl_motor', Float32, self.callback_vspeed)
-        self.sub_control_state = rospy.Subscriber('/contorl_state', Float32, self.callback_contorl_state)
         
         self.pub_vehivle_dis = rospy.Publisher('/vehicle_dis', Float32, queue_size=1)
         self.pub_turn_dis = rospy.Publisher('/turn_dis', Float32MultiArray, queue_size=1)
@@ -26,14 +25,11 @@ class find_distance():
         self.parkinglot_pose = []
         self.turnpoint = []
         self.vspeed = None
-        self.contorl_state = None
         
         self.is_vehicle_pose = False
         self.is_parkinglot_pose = False
         self.is_turnpoint = False
         self.is_vspeed = False
-        self.is_control_state = False
-
         self.pub_turndis = None
         self.pub_dis = None
         
@@ -59,10 +55,6 @@ class find_distance():
             self.vspeed = data.data
             self.is_vspeed = True
             
-    def callback_contorl_state(self, data):
-        if not self.is_control_state:
-            self.contorl_state = data.data
-            self.is_control_state = True    
     
     def distance(self):
         try:

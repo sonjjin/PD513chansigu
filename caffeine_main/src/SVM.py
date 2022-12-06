@@ -4,6 +4,7 @@
 import cv2
 import cv2 as cv
 import numpy as np
+import os
 
 import rospy
 from sensor_msgs.msg import Image
@@ -13,7 +14,7 @@ from cv_bridge import CvBridge
 
 
 class SurroundView:
-    def __init__(self):
+    def __init__(self, save_path):
         # subscribe the image
         self.cv_bridge = CvBridge() # ros image massage를 사진으로 받아오는 함수
         self.img_front_sub = rospy.Subscriber('/front_cam/image_raw', Image, self.img_front_callback)
@@ -34,6 +35,7 @@ class SurroundView:
         # self.cur_img_right = cv2.imread('right.jpg', cv2.IMREAD_COLOR)
         # self.cur_img_back = cv2.imread('rear.jpg', cv2.IMREAD_COLOR)
 
+        self.save_path = save_path
         
         # 초기화
         
@@ -150,6 +152,7 @@ class SurroundView:
         self.lk_params = dict(winSize = (5,5),
 		maxLevel = 2,
 		criteria = (cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03))
+        self.iter = 0
         #self.final_car = cv2.resize(self.car, dsize=(420, 700),interpolation=cv2.INTER_LINEAR)
 	
 
@@ -459,12 +462,12 @@ class SurroundView:
                     else:
                         if self.cur_steer == 0:
                             step = np.int32(-self.cur_speed*0.1+7)   
-                            print(step)          
+                            # print(step)          
                             self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
 
                         else:
                             step = np.int32(-self.cur_speed*0.1+7)        
-                            print(step)          
+                            # print(step)          
                             self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경                            
                             H, W, _ = self.old_frame.shape
                             M = cv2.getRotationMatrix2D((W/2, H/2), self.cur_steer, 1)
@@ -509,6 +512,7 @@ class SurroundView:
 
                         
                     cv2.imshow('surround view', cv2.resize(out_frame, dsize=(300,500)))
+                    cv2.imwrite(self.save_path + '/SVM/' + str(self.iter).zfill(4) + '.png', cv2.resize(out_frame, dsize=(300,500)))
                     # cv2.imshow('x',left)
                     # cv2.imshow('xx',right)
 
@@ -531,15 +535,19 @@ class SurroundView:
                     print('x')
             self.is_cur_speed = False
             self.is_cur_steer = False
-
+            self.iter = self.iter + 1
         else:
             print("NOT ALL IMAGES RECIEVED YET.") 
             
             
 if __name__ == '__main__':
+    save_path = '/home/hellobye/exp6'
+    if not os.path.exists(save_path):
+        os.makedirs(save_path+'/SVM')
+
     rospy.init_node('surround_view_node')
     r = rospy.Rate(10)
-    sv = SurroundView()
+    sv = SurroundView(save_path)
 
     while not rospy.is_shutdown():
         sv.process()
