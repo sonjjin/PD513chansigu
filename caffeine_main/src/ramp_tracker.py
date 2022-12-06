@@ -496,7 +496,7 @@ class Ramptracker:
         img_f_h = img_f.shape[0]/2
         img_l_h = img_l.shape[0]/2
         img_r_h = img_r.shape[0]/2
-        f_h_target = img_f_h * 0.8
+        f_h_target = img_f_h * 0.7
         l_h_target = img_l_h * 0.5
         r_h_target = img_r_h * 0.5
 

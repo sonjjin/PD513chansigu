@@ -164,6 +164,8 @@ class find_property():
                         cX = self.properties[0]
                         cY = self.properties[1]
                         angle_deg = self.properties[2]
+                        self.is_parkinglot = False
+
                         # print(self.properties)
 
                     # print('error properties')

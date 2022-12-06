@@ -21,9 +21,10 @@ class Parking:
         self.cv_bridge = CvBridge()
         
         self.sub_parking_path1 = rospy.Subscriber('/img_w_path1', Image, self.callback_img_path1) # MATLAB
-        self.sub_parking_path2 = rospy.Subscriber('/img_w_path2', Image, self.callback_img_path2) # MATLAB
         self.sub_parking_path3 = rospy.Subscriber('/img_w_path3', Image, self.callback_img_path3) # MATLAB
-        
+        self.sub_parking_path2 = rospy.Subscriber('/img_w_path2', Image, self.callback_img_path2) # MATLAB
+
+
         self.sub_proprties = rospy.Subscriber('/properties', Float32MultiArray, self.callback_properties)
         self.sub_pv_distance = rospy.Subscriber('/vehicle_dis', Float32, self.callback_pv_dis)
         self.sub_turn_distance = rospy.Subscriber('/turn_dis', Float32MultiArray, self.callback_turn_dis)
@@ -102,7 +103,7 @@ class Parking:
             self.is_parking_path1 = True
         
     def callback_img_path2(self, data):
-        if not self.is_parking_path1:
+        if not self.is_parking_path2:
             img = self.cv_bridge.imgmsg_to_cv2(data, 'rgb8') # ros image를 cv2로 받아오기
             self.img_parking_path2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             # print("front",  self.img_parking_path2.shape) 
@@ -182,7 +183,6 @@ class Parking:
             try:
                 target = self.properties
                 roi = self.get_roi(target)
-            
                 gain_cte = 0.3
                 gain_curv = -1
                 cte = 0
@@ -222,13 +222,36 @@ class Parking:
                     steer = gain_cte * cte + gain_curv / front_curverad
                     if self.turnpoint[0][2] == 21:
                         self.steer = -(steer+4)
+                        steer = max(min(steer, 20.0), -20.0)
+                        
                     elif self.turnpoint[0][2] == 22:
                         self.steer = -(steer+2)
-                        # self.steer = -20
+                        steer = max(min(steer, 20.0), -20.0)
+
+                    elif self.turnpoint[0][2] == 23:
+                        # print('23')
+                        self.steer = -(steer+2)
+                        steer = max(min(steer, 20.0), -20.0)
+                        # if self.steer > 0:
+                        #     self.steer = -15
+
+                    elif self.turnpoint[0][2] == 24:
+                        # print('23')
+                        self.steer = -(steer+2)
+                        steer = max(min(steer, 20.0), -20.0)
+                        # if self.steer > 0:
+                        #     self.steer = -15
+                    
+                    elif self.turnpoint[0][2] == 25:
+                        # print('23')
+                        self.steer = -(steer+2)
+                        steer = max(min(steer, 20.0), -20.0)
+                        # if self.steer > 0:
+                        #     self.steer = -15
                     else:
                         self.steer = -steer
 
-                    steer = max(min(steer, 20.0), -20.0)
+                        steer = max(min(steer, 20.0), -20.0)
                 self.cte = cte
                 self.is_properties = False
             
@@ -263,14 +286,14 @@ class Parking:
                         self.steer = self.cur_steer
                         # rospy.sleep(3)
                         self.speed = 0
-                        time.sleep(2)
+                        time.sleep(1.7)
                     
                     elif self.turn_dis[0] < 70 and self.turnpoint[0][2] == 24:
                         self.control_map = self.control_map + 1
                         self.steer = self.cur_steer
                         # rospy.sleep(3)
                         self.speed = 0
-                        time.sleep(2)
+                        time.sleep(1)
                     
                     elif self.turn_dis[0] < 70 and self.turnpoint[0][2] == 25:
                         self.control_map = self.control_map + 1
@@ -285,12 +308,13 @@ class Parking:
                     if self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
                         self.control_map = self.control_map + 1
                         self.speed = 0
+                        time.sleep(2)
                 
                 elif self.control_map == 3 and self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
                     self.speed = 150
     
             if self.turnpoint[0][2] == 11:
-                th = 60
+                th = 70
             elif self.turnpoint[0][2] == 12:
                 th = 80
             elif self.turnpoint[0][2] == 13:
@@ -304,9 +328,9 @@ class Parking:
             elif self.turnpoint[0][2] == 22:
                 th = 100
             elif self.turnpoint[0][2] == 23:
-                th = 100
+                th = 110
             elif self.turnpoint[0][2] == 24:
-                th = 100
+                th = 165
             elif self.turnpoint[0][2] == 25:
                 th = 100
 
@@ -332,7 +356,6 @@ class Parking:
             # print('x')
         
         else:
-            # print(self.is_parking_path1, self.is_parking_path2, self.is_parking_path3)
             # print(self.is_turn_dis)
             # print('y')
             if self.parking_finish:
@@ -349,8 +372,10 @@ class Parking:
                     self.control_state = 4
 
 
-            elif self.is_parking_path1:
+            elif self.is_parking_path1 and self.is_parking_path2:
                 self.start_time = time.time()
+                print(self.turnpoint[0][2])
+                cv2.imshow('.', self.img_parking_path2)
                 self.get_steer()
                 self.get_speed()
 
@@ -363,6 +388,7 @@ class Parking:
                 print('control map: {}'.format(self.control_map))
                 print('control state: parking')
                 print(self.control_state)
+                # print(self.turnpoint[0][2])
                 print("-----------------------")
                 
                 
