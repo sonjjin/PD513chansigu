@@ -305,12 +305,13 @@ class Parking:
 
                 elif self.control_map == 2 and self.turn_dis[0] < 80 and self.turn_dis[0] != -1:
                     self.speed = -150
-                    if self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
-                        self.control_map = self.control_map + 1
-                        self.speed = 0
-                        time.sleep(2)
+                    # if self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
+                    #     self.control_map = self.control_map + 1
+                    #     self.speed = 0
+                    #     time.sleep(2)
                 
-                elif self.control_map == 3 and self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
+                elif self.control_map == 2 and self.turn_dis[1] < 80 and self.turn_dis[1] != -1:
+                    self.control_map = self.control_map + 1
                     self.speed = 150
     
             if self.turnpoint[0][2] == 11:
@@ -374,7 +375,7 @@ class Parking:
 
             elif self.is_parking_path1 and self.is_parking_path2:
                 self.start_time = time.time()
-                print(self.turnpoint[0][2])
+                # print(self.turnpoint[0][2])
                 cv2.imshow('.', self.img_parking_path2)
                 self.get_steer()
                 self.get_speed()

@@ -493,9 +493,10 @@ class Ramptracker:
         
     
     def get_steer(self, img_f, check_right_f, check_left_f, right_fit_f, left_fit_f, img_l, check_right_l, right_fit_l, img_r, check_left_r, left_fit_r):
-        img_f_h = img_f.shape[0]/2
+        # img_f_h = img_f.shape[0]/2
         img_l_h = img_l.shape[0]/2
         img_r_h = img_r.shape[0]/2
+        img_f_h = img_f.shape[0]
         f_h_target = img_f_h * 0.7
         l_h_target = img_l_h * 0.5
         r_h_target = img_r_h * 0.5
@@ -640,11 +641,11 @@ class Ramptracker:
             self.is_front = False
             self.is_left = False
             self.is_right = False
-            self.check_left = False
-            self.check_left_f = False
-            self.check_left_r = False
-            self.check_right = False
-            self.check_right_l = False
+            # self.check_left = False
+            # self.check_left_f = False
+            # self.check_left_r = False
+            # self.check_right = False
+            # self.check_right_l = False
         
         else:
             return None
