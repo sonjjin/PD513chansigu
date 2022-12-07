@@ -111,7 +111,7 @@ class Ramptracker:
         self.right_fit = None
 
         self.m_per_pixel = 0.00252
-        self.steer = None
+        self.steer = 0
 
         self.count = 0
         self.iter = 0
@@ -737,8 +737,8 @@ class Ramptracker:
         
 if __name__ == '__main__':
     rospy.init_node('lane_detection')
-    r = rospy.Rate(10)
-    rt = Ramptracker(start_position = 0)
+    r = rospy.Rate(20)
+    rt = Ramptracker(start_position = 2)
     c = 0
     while not rospy.is_shutdown():
         if c == 0:      

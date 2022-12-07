@@ -45,6 +45,8 @@ class SurroundView:
         self.cur_img_back = None
         
         self.old_frame = None
+        self.old_frame2 = None
+
         self.old_gray = None
 
         self.is_first = True
@@ -382,11 +384,15 @@ class SurroundView:
                 left = self.side_left(img4)
                 right = self.side_right(img2)
                 
+                
+
                 # merge
                 _, self.old_frame = self.merge(head, tail, left, right, self.car)
                 # old_frame_out = self.old_frame
-
+                self.old_frame2 = self.old_frame.copy()
                 self.old_frame = cv.cvtColor(self.old_frame, cv.COLOR_BGR2RGB)
+                self.old_frame2 = cv.cvtColor(self.old_frame, cv.COLOR_BGR2RGB)
+
                 self.old_gray = cv.cvtColor(self.old_frame, cv.COLOR_BGR2GRAY)
                 
                 self.old_frame_head = cv.cvtColor(head[:,250:-250], cv.COLOR_BGR2RGB)
@@ -446,6 +452,17 @@ class SurroundView:
                 left = self.side_left(img4)
                 right = self.side_right(img2)
 
+
+                head = cv2.line(head, (145, 0), (145, head.shape[0]), (255,0,0), 3)
+                head = cv2.line(head, (485, 0), (485, head.shape[0]), (255,0,0), 3)
+
+                left = cv2.line(left, (325, 0), (325, left.shape[0]), (255,0,0), 5)
+                right = cv2.line(right, (55, 0), (55, right.shape[0]), (255,0,0), 3)
+
+                tail = cv2.line(tail, (145, 0), (145, tail.shape[0]), (255,0,0), 3)
+                tail = cv2.line(tail, (490, 0), (490, tail.shape[0]), (255,0,0), 3)
+
+
                 _, frame = self.merge(head,tail,left,right,self.car)
                 
                 frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
@@ -455,27 +472,38 @@ class SurroundView:
 
                 try:
                     print(self.cur_speed)
-                    if self.cur_speed == 0:
+                    if self.cur_speed == 0 or self.cur_speed is None:
                         step = 0
                         self.old_frame[:,:,:] = self.old_frame[:,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
-
                     else:
-                        if self.cur_steer == 0:
-                            step = np.int32(-self.cur_speed*0.1+7)   
-                            # print(step)          
-                            self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
+                        # new_frame = self.old_frame
 
+                        if self.cur_steer == 0:
+                            step = np.int32(-self.cur_speed*0.1) 
+                              
+                            # print(step)
+                            self.old_frame2[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
+                            # new_frame = self.old_frame2 - self.old_frame
+                            self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
+                            # cv2.imshow(/'new', cv2.resize(self.old_frame, dsize=(300,500)))
                         else:
-                            step = np.int32(-self.cur_speed*0.1+7)        
+                            step = np.int32(-self.cur_speed*1.1)        
                             # print(step)          
-                            self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경                            
+                            # self.old_frame2[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
+                            # new_frame = self.old_frame2 - self.old_frame
+                            
+                            self.old_frame[step*-1:,:,:] = self.old_frame[:step,:,:] # 이전 farame의 처음 10개를 마지막 10개로 변경
+                            self.old_frame = self.old_frame*self.mask_inverse
                             H, W, _ = self.old_frame.shape
-                            M = cv2.getRotationMatrix2D((W/2, H/2), self.cur_steer, 1)
+                            M = cv2.getRotationMatrix2D((W/2, H/2), self.cur_steer*0.1, 1)
                             self.old_frame = cv2.warpAffine(self.old_frame, M, (W,H))
                         
                     
                     # out_frame = frame
+
                     frame = frame*self.mask+self.old_frame*self.mask_inverse
+                    # cv2.imshow('2', self.old_frame*self.mask_inverse)
+
                     out_frame = frame
                     
                     self.old_gray = frame_gray.copy()
@@ -512,7 +540,7 @@ class SurroundView:
 
                         
                     cv2.imshow('surround view', cv2.resize(out_frame, dsize=(300,500)))
-                    cv2.imwrite(self.save_path + '/SVM/' + str(self.iter).zfill(4) + '.png', cv2.resize(out_frame, dsize=(300,500)))
+                    cv2.imwrite(self.save_path + '/SVM2/' + str(self.iter).zfill(4) + '.png', cv2.resize(out_frame, dsize=(300,500)))
                     # cv2.imshow('x',left)
                     # cv2.imshow('xx',right)
 
@@ -542,8 +570,8 @@ class SurroundView:
             
 if __name__ == '__main__':
     save_path = '/home/hellobye/exp6'
-    if not os.path.exists(save_path):
-        os.makedirs(save_path+'/SVM')
+    if not os.path.exists(save_path+'/SVM2'):
+        os.makedirs(save_path+'/SVM2')
 
     rospy.init_node('surround_view_node')
     r = rospy.Rate(10)
